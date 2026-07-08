@@ -1,0 +1,4 @@
+whatsapp-listener/node_modules/
+whatsapp-listener/auth_info/
+whatsapp-listener/.env
+uploads/whatsapp_media/*

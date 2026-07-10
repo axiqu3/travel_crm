@@ -4,85 +4,154 @@ document.addEventListener("DOMContentLoaded", () => {
 
   sidebar.classList.add("sidebar-modern");
 
-  // SVG Icon definitions
-  const icons = {
-    'dashboard': `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" /></svg>`,
-    'users': `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.109A11.386 11.386 0 0110.089 20M3 16.5a4.125 4.125 0 017.533-2.493M3 16.5a9.039 9.039 0 012.625-.372 9.337 9.337 0 014.121.952M3 16.5v-2.128C3 13.167 3.84 12.33 4.873 12.235A11.233 11.233 0 0110 11.25c2.569 0 4.957.859 6.873 2.308c1.033.095 1.873.932 1.873 2.067v2.128m0 0h-.002" /></svg>`,
-    'bookings': `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008zM9.75 15h.008v.008H9.75V15zm0 2.25h.008v.008H9.75v-.008zM7.5 15h.008v.008H7.5V15zm0 2.25h.008v.008H7.5v-.008zm6.75-4.5h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008V15zm0 2.25h.008v.008h-.008v-.008zm2.25-4.5h.008v.008H16.5v-.008zm0 2.25h.008v.008H16.5V15z" /></svg>`,
-    'my-bookings': `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008zM9.75 15h.008v.008H9.75V15zm0 2.25h.008v.008H9.75v-.008zM7.5 15h.008v.008H7.5V15zm0 2.25h.008v.008H7.5v-.008zm6.75-4.5h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008V15zm0 2.25h.008v.008h-.008v-.008zm2.25-4.5h.008v.008H16.5v-.008zm0 2.25h.008v.008H16.5V15z" /></svg>`,
-    'add-booking': `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`,
-    'reports': `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6a7.5 7.5 0 107.5 7.5h-7.5V6z" /><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 10.5H21A7.5 7.5 0 0013.5 3v7.5z" /></svg>`,
-    'customers': `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.97 5.97 0 00-.75-2.985m-.008-3.225A9.01 9.01 0 0112 15a9.01 9.01 0 01-5.242-1.67M12 15a9.01 9.01 0 00-5.242-1.67M3 18.72A9.094 9.094 0 016.742 18.2M6.742 18.2a5.97 5.97 0 01-.75-2.985M6.742 18.2a5.97 5.97 0 00.75-2.985m-5.992 3.5l.002.031c0 .225.011.447.037.666A11.944 11.944 0 0012 21c2.17 0 4.207-.576 5.963-1.584A6.06 6.06 0 0018 18.72m-12 0a5.97 5.97 0 00.75-2.985m-.008-3.225A9.01 9.01 0 0112 15m0 0c-2.9 0-5.4.75-7.42 2.03M12 15c2.9 0 5.4.75 7.42 2.03M12 9a3 3 0 110-6 3 3 0 010 6zm0 0a3 3 0 100-6 3 3 0 000 6zm-7.5 1.5a2.25 2.25 0 110-4.5 2.25 2.25 0 010 4.5zm15 0a2.25 2.25 0 110-4.5 2.25 2.25 0 010 4.5z" /></svg>`,
-    'my-tasks': `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>`,
-    'tasks': `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>`,
-    'activity': `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`,
-    'enquiry': `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" d="M8.625 9.75a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>`,
-    'logout': `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" /></svg>`
+  // Mobile drawer controls. The desktop sidebar remains permanently visible,
+  // while small screens use an off-canvas drawer so content keeps full width.
+  if (!sidebar.id) sidebar.id = "appSidebar";
+
+  const mobileToggle = document.createElement("button");
+  mobileToggle.type = "button";
+  mobileToggle.className = "sidebar-mobile-toggle";
+  mobileToggle.textContent = "\u2630";
+  mobileToggle.setAttribute("aria-label", "Open navigation menu");
+  mobileToggle.setAttribute("aria-controls", sidebar.id);
+  mobileToggle.setAttribute("aria-expanded", "false");
+
+  const mobileOverlay = document.createElement("div");
+  mobileOverlay.className = "sidebar-mobile-overlay";
+  mobileOverlay.setAttribute("aria-hidden", "true");
+
+  document.body.appendChild(mobileToggle);
+  document.body.appendChild(mobileOverlay);
+
+  const closeMobileSidebar = () => {
+    document.body.classList.remove("sidebar-mobile-open");
+    mobileToggle.textContent = "\u2630";
+    mobileToggle.setAttribute("aria-label", "Open navigation menu");
+    mobileToggle.setAttribute("aria-expanded", "false");
   };
 
-  // 1. Redraw Logo
-  const logo = sidebar.querySelector(".logo");
-  if (logo) {
-    logo.innerHTML = `<span class="logo-icon">✈</span><span class="logo-text">Travel CRM</span>`;
-  }
+  const openMobileSidebar = () => {
+    document.body.classList.add("sidebar-mobile-open");
+    mobileToggle.textContent = "\u00d7";
+    mobileToggle.setAttribute("aria-label", "Close navigation menu");
+    mobileToggle.setAttribute("aria-expanded", "true");
+  };
 
-  // 2. Wrap all links with structure
-  const links = sidebar.querySelectorAll("a");
-  links.forEach(link => {
-    const text = link.textContent.trim();
-    const key = text.toLowerCase().replace(/\s+/g, '-');
-    const svgIcon = icons[key] || icons['dashboard'];
-
-    link.innerHTML = `<span class="nav-icon">${svgIcon}</span><span class="nav-text">${text}</span>`;
-    link.classList.add("nav-item");
-  });
-
-  // Click to lock/unlock (tap anywhere on the sidebar body, except on navigation links)
-  const main = document.querySelector(".main");
-
-  // Load state from localStorage
-  const isLocked = localStorage.getItem("sidebar-locked") === "true";
-  if (isLocked) {
-    sidebar.classList.add("locked");
-    if (main) main.classList.add("sidebar-locked");
-  }
-
-  // Restore animations by removing pre-paint helper class
-  document.documentElement.classList.remove("sidebar-pref-locked");
-
-  sidebar.addEventListener("click", (e) => {
-    // If clicking a link, let them navigate normally
-    if (e.target.closest("a")) return;
-
-    e.preventDefault();
-    e.stopPropagation();
-
-    const wasLocked = sidebar.classList.contains("locked");
-    if (wasLocked) {
-      sidebar.classList.remove("locked");
-      if (main) main.classList.remove("sidebar-locked");
-      localStorage.setItem("sidebar-locked", "false");
+  mobileToggle.addEventListener("click", () => {
+    if (document.body.classList.contains("sidebar-mobile-open")) {
+      closeMobileSidebar();
     } else {
-      sidebar.classList.add("locked");
-      if (main) main.classList.add("sidebar-locked");
-      localStorage.setItem("sidebar-locked", "true");
+      openMobileSidebar();
     }
   });
+
+  mobileOverlay.addEventListener("click", closeMobileSidebar);
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeMobileSidebar();
+  });
+
+  sidebar.querySelectorAll("a").forEach(link => {
+    link.addEventListener("click", () => {
+      if (window.matchMedia("(max-width: 900px)").matches) {
+        closeMobileSidebar();
+      }
+    });
+  });
+
+  const desktopMedia = window.matchMedia("(min-width: 901px)");
+  const resetMobileState = (event) => {
+    if (event.matches) closeMobileSidebar();
+  };
+  if (desktopMedia.addEventListener) {
+    desktopMedia.addEventListener("change", resetMobileState);
+  } else {
+    desktopMedia.addListener(resetMobileState);
+  }
+
+  // Initialize maxHeight on open dropdowns so they collapse smoothly without flickering
+  sidebar.querySelectorAll(".nav-dropdown.open .nav-dropdown-content").forEach(content => {
+    content.style.maxHeight = content.scrollHeight + "px";
+  });
+
+  // Setup click handlers for accordion toggle
+  sidebar.querySelectorAll(".nav-dropdown-btn").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const dropdown = btn.closest(".nav-dropdown");
+      const content = dropdown.querySelector(".nav-dropdown-content");
+      const isOpen = dropdown.classList.contains("open");
+
+      // Close other dropdowns
+      sidebar.querySelectorAll(".nav-dropdown").forEach(otherDropdown => {
+        if (otherDropdown !== dropdown && otherDropdown.classList.contains("open")) {
+          const otherContent = otherDropdown.querySelector(".nav-dropdown-content");
+          otherDropdown.classList.remove("open");
+          otherContent.style.maxHeight = "0px";
+          if (otherDropdown.dataset.routeActive !== "true") {
+            otherDropdown.querySelector(".nav-dropdown-btn").classList.remove("parent-active");
+          }
+        }
+      });
+
+      // Expand and pin the sidebar when a dropdown is opened.
+      if (!sidebar.classList.contains("locked")) {
+        sidebar.classList.add("locked");
+        const main = document.querySelector(".main");
+        if (main) main.classList.add("sidebar-locked");
+        localStorage.setItem("sidebar-locked", "true");
+      }
+
+      if (isOpen) {
+        // Collapse dropdown
+        content.style.maxHeight = "0px";
+        dropdown.classList.remove("open");
+        if (dropdown.dataset.routeActive !== "true") {
+          btn.classList.remove("parent-active");
+        }
+      } else {
+        // Expand dropdown
+        dropdown.classList.add("open");
+        btn.classList.add("parent-active");
+        content.style.maxHeight = content.scrollHeight + "px";
+      }
+    });
+  });
+
+  // Keep the sidebar permanently expanded at the standard full size.
+  const main = document.querySelector(".main");
+  sidebar.classList.add("locked");
+  if (main) main.classList.add("sidebar-locked");
+  localStorage.setItem("sidebar-locked", "true");
+
+  document.documentElement.classList.remove("sidebar-pref-locked");
 
   // 4. Activate Global Search Bar
   const searchInput = document.querySelector(".search");
   if (searchInput) {
     searchInput.addEventListener("input", function() {
       const searchVal = this.value.toLowerCase().trim();
+
+      // Filter standard table rows
       const rows = document.querySelectorAll("tbody tr");
-
       rows.forEach(row => {
-        // Skip the "No records/bookings found" fallback row (which usually has a single cell spanning columns)
         if (row.cells.length === 1 && row.cells[0].colSpan > 1) return;
-
         const text = row.textContent.toLowerCase();
         if (text.includes(searchVal)) {
           row.style.display = "";
+        } else {
+          row.style.display = "none";
+        }
+      });
+
+      // Filter Gmail-style inbox rows (admin enquiries page)
+      const inboxRows = document.querySelectorAll(".inbox-row");
+      inboxRows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        if (text.includes(searchVal)) {
+          row.style.display = "flex";
         } else {
           row.style.display = "none";
         }

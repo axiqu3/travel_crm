@@ -55,8 +55,31 @@ foreach ($messages as $msg) {
         continue;
     }
 
-    // customer_name = pushName (fallback to WhatsApp: senderNumber)
-    $customer_name = !empty($pushName) ? $pushName : "WhatsApp: " . $senderNumber;
+    // Determine message type
+    $is_manual_outgoing = (($msg['direction'] ?? 'incoming') === 'outgoing_manual');
+    $direction_db = $is_manual_outgoing ? 'outgoing' : 'incoming';
+    $sent_by_db = $is_manual_outgoing ? "'Phone (Manual)'" : "NULL";
+
+    // Try to resolve customer name robustly
+    $new_resolved_name = '';
+    // 1. Try to find the name from customer_master first
+    $cm_match_sql = get_mobile_matching_sql($db, 'mobile', $senderNumber);
+    $cm_query = mysqli_query($db, "SELECT name FROM customer_master WHERE $cm_match_sql LIMIT 1");
+    if ($cm_query && mysqli_num_rows($cm_query) > 0) {
+        $cm_row = mysqli_fetch_assoc($cm_query);
+        $new_resolved_name = $cm_row['name'];
+    }
+    
+    // 2. If not found in customer_master, use pushName (only if incoming)
+    if (empty($new_resolved_name)) {
+        if (!$is_manual_outgoing && !empty($pushName)) {
+            $new_resolved_name = $pushName;
+        } else {
+            $new_resolved_name = $senderNumber;
+        }
+    }
+    
+    $customer_name = $new_resolved_name;
 
     // Escape database inputs safely
     $customer_name_db = mysqli_real_escape_string($db, $customer_name);
@@ -70,11 +93,6 @@ foreach ($messages as $msg) {
     $media_type_db = mysqli_real_escape_string($db, $msg['mediaType'] ?? 'none');
     $original_filename_db = mysqli_real_escape_string($db, $msg['originalFilename'] ?? '');
     $media_duration_db = intval($msg['mediaDuration'] ?? 0);
-
-    // Determine message type
-    $is_manual_outgoing = (($msg['direction'] ?? 'incoming') === 'outgoing_manual');
-    $direction_db = $is_manual_outgoing ? 'outgoing' : 'incoming';
-    $sent_by_db = $is_manual_outgoing ? "'Phone (Manual)'" : "NULL";
 
     // Check if an enquiries row already exists for this mobile number using robust matching
     $mobile_condition = get_mobile_matching_sql($db, 'mobile', $senderNumber);
@@ -91,15 +109,31 @@ foreach ($messages as $msg) {
             continue;
         }
         
+        // Fetch current enquiry name to see if it is generic/admin and needs update
+        $current_enq_q = mysqli_query($db, "SELECT customer_name FROM enquiries WHERE id = $enquiry_id");
+        $current_enq = mysqli_fetch_assoc($current_enq_q);
+        $current_name = $current_enq['customer_name'] ?? '';
+        
+        $is_generic = (is_numeric($current_name) || empty($current_name) || in_array(strtolower($current_name), ['asheii', 'ashi', 'admin', 'admin user', 'phone (manual)']) || strpos(strtolower($current_name), 'whatsapp:') === 0);
+        
+        $update_name_sql = "";
+        // If the current name is generic/admin, and we resolved a better name that is not generic/admin, update it!
+        if ($is_generic && !empty($customer_name)) {
+            $is_new_name_valid = !(is_numeric($customer_name) || empty($customer_name) || in_array(strtolower($customer_name), ['asheii', 'ashi', 'admin', 'admin user', 'phone (manual)']) || strpos(strtolower($customer_name), 'whatsapp:') === 0);
+            if ($is_new_name_valid && strtolower($current_name) !== strtolower($customer_name)) {
+                $update_name_sql = ", customer_name = '$customer_name_db'";
+            }
+        }
+
         // Insert message into enquiry_messages
         $msg_query = "INSERT INTO enquiry_messages (enquiry_id, mobile, direction, message_text, sent_by, media_path, media_type, original_filename, media_duration) 
                       VALUES ($enquiry_id, '$mobile_db', '$direction_db', '$description_db', $sent_by_db, '$media_path_db', '$media_type_db', '$original_filename_db', $media_duration_db)";
                       
         // Update existing enquiry description preview
         if (!$is_manual_outgoing) {
-            $update_enq = "UPDATE enquiries SET description = '$description_db', notified = 0, status = 'New', updated_at = NOW() WHERE id = $enquiry_id";
+            $update_enq = "UPDATE enquiries SET description = '$description_db', notified = 0, status = 'New', updated_at = NOW() $update_name_sql WHERE id = $enquiry_id";
         } else {
-            $update_enq = "UPDATE enquiries SET description = '$description_db', updated_at = NOW() WHERE id = $enquiry_id";
+            $update_enq = "UPDATE enquiries SET description = '$description_db', updated_at = NOW() $update_name_sql WHERE id = $enquiry_id";
         }
         
         if (mysqli_query($db, $msg_query) && mysqli_query($db, $update_enq)) {

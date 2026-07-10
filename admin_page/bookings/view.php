@@ -96,11 +96,18 @@ $attachments_query = mysqli_query($db, "SELECT * FROM booking_attachments WHERE 
 
 
 $selling_cost = floatval($booking['selling_cost']);
+$booking_status = $booking['status'] ?: 'Booked';
+$booking_status_class = strtolower(trim(preg_replace('/[^a-z0-9]+/i', '-', $booking_status), '-'));
+$booking_date_display = !empty($booking['booking_date']) ? date('d M Y', strtotime($booking['booking_date'])) : 'Not set';
+$route_display = trim(($booking['from_city'] ?: '') . ((!empty($booking['from_city']) || !empty($booking['to_city'])) ? ' to ' : '') . ($booking['to_city'] ?: ''));
+$route_display = $route_display ?: ($booking['customer_name'] ?: 'Not set');
 ?>
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Booking Info | Travel CRM</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Booking Info | <?= htmlspecialchars(COMPANY_NAME) ?></title>
     <link rel="stylesheet" href="../../assets/css/style.css">
     <script>if(localStorage.getItem("sidebar-locked")==="true")document.documentElement.classList.add("sidebar-pref-locked");</script>
     <script src="../../assets/js/sidebar.js" defer></script>
@@ -153,137 +160,331 @@ $selling_cost = floatval($booking['selling_cost']);
             margin: 0;
         }
     </style>
+    <link rel="stylesheet" href="../../assets/css/premium-booking-view.css">
 </head>
 <body>
 
-<div class="sidebar">
-    <h2 class="logo">✈ Travel CRM</h2>
-    <a href="../dashboard.php">Dashboard</a>
-    <a href="../master/list.php">Master</a>
-    <a href="list.php" class="active">Bookings</a>
-    <a href="add.php">Add Booking</a>
-    <a href="reports.php">Reports</a>
-    <a href="../enquiry/list.php"<?= (strpos($_SERVER['PHP_SELF'], '/enquiry/') !== false) ? ' class="active"' : '' ?>>Enquiry</a>
-    <a href="../tasks/index.php">Tasks</a>
-    <a href="../admin/activity.php">Activity</a>
-    <a href="../../login.php" class="logout">Logout</a>
-</div>
+<?php include(__DIR__ . "/../../includes/sidebar.php"); ?>
 
-<div class="main">
-    <div class="header">
-        <input class="search" placeholder="Search...">
-        <span class="notify">🔔</span>
-        <a href="../profile/index.php" class="profile-widget">
-            <span>👤 Profile</span>
-        </a>
-    </div>
-
-    <div class="dashboard-title-row">
-        <h1>Booking Overview</h1>
-        <div class="time-btns">
-            <a href="list.php" class="btn btn-secondary">Back to List</a>
-            <a href="edit.php?id=<?php echo $booking['id']; ?>" class="btn">Edit Booking</a>
+<main class="main booking-view-page">
+    <header class="booking-page-topbar">
+        <div>
+            <p class="booking-page-eyebrow">Booking workspace</p>
+            <h1>Booking details</h1>
+            <p class="booking-page-subtitle">Review the service, documents, payment and account history in one place.</p>
         </div>
-    </div>
-    
-    <hr>
+        <div class="booking-page-actions">
+            <a href="list.php" class="booking-btn">Back to bookings</a>
+            <a href="edit.php?id=<?php echo (int) $booking['id']; ?>" class="booking-btn booking-btn-primary">Edit booking</a>
+        </div>
+    </header>
 
     <?php if (!empty($message)): ?>
-        <div style="padding: 12px 20px; border-radius: 12px; margin-bottom: 20px; font-weight: 600; 
-            background: <?php echo $message_type == 'success' ? '#dcfce7' : '#fee2e2'; ?>; 
-            color: <?php echo $message_type == 'success' ? '#166534' : '#991b1b'; ?>;">
+        <div class="booking-alert <?php echo $message_type === 'success' ? 'is-success' : 'is-error'; ?>" role="alert">
             <?php echo htmlspecialchars($message); ?>
         </div>
     <?php endif; ?>
 
     <!-- Top Card: Header Details -->
-    <div class="view-header-card d-flex justify-between align-center" style="flex-wrap: wrap; gap: 20px;">
-        <div>
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
-                <span style="font-family: monospace; font-size: 14px; font-weight: 700; color: var(--accent-color); padding: 4px 8px; background: rgba(26, 115, 232, 0.1); border-radius: 6px;">
-                    No. <?php echo htmlspecialchars($booking['serial_no']); ?>
-                </span>
-                <span class="badge <?php echo strtolower($booking["status"] ?: 'booked'); ?>">
-                    <?php echo htmlspecialchars($booking["status"] ?: 'Booked'); ?>
-                </span>
+    <section class="view-header-card booking-hero">
+        <div class="booking-hero-main">
+            <div class="booking-hero-labels">
+                <span class="booking-reference">Booking #<?php echo htmlspecialchars($booking['serial_no'] ?: $booking['id']); ?></span>
+                <span class="booking-status status-<?php echo htmlspecialchars($booking_status_class); ?>"><?php echo htmlspecialchars($booking_status); ?></span>
             </div>
-            <h2 style="font-size: 24px; color: var(--text-main); font-weight: 700; margin: 0;">
-                <?php echo htmlspecialchars($booking["passenger_name"]); ?>
-            </h2>
+            <h2><?php echo htmlspecialchars($booking['passenger_name'] ?: $booking['customer_name'] ?: 'Unnamed traveller'); ?></h2>
+            <p class="booking-hero-customer">Customer: <?php echo htmlspecialchars($booking['customer_name'] ?: 'Not specified'); ?></p>
         </div>
-        <div style="font-size: 14px; color: var(--text-secondary); text-align: right;">
-            Booking Date: <strong style="color: var(--text-main);"><?php echo htmlspecialchars($booking["booking_date"]); ?></strong>
+        <div class="booking-hero-meta" aria-label="Booking summary">
+            <div><span>Service</span><strong><?php echo htmlspecialchars($booking['service_type'] ?: 'Travel'); ?></strong></div>
+            <div><span>PNR / Reference</span><strong><?php echo htmlspecialchars($booking['pnr'] ?: $booking['booking_ref'] ?: 'Not set'); ?></strong></div>
+            <div><span>Route / Customer</span><strong><?php echo htmlspecialchars($route_display); ?></strong></div>
+            <div><span>Booking date</span><strong><?php echo htmlspecialchars($booking_date_display); ?></strong></div>
         </div>
-    </div>
+    </section>
 
     <!-- Main Content Grid -->
-    <div class="bottom-grid" style="grid-template-columns: 2fr 1fr; gap: 24px;">
+    <div class="bottom-grid booking-content-grid">
         
         <!-- Left: Flight & Ticket & Attachments -->
-        <div style="display: flex; flex-direction: column; gap: 24px;">
+        <div class="booking-main-column">
             
-            <!-- Flight Details Card -->
-            <div class="card">
-                <h2>Flight & Ticket Details</h2>
-                <hr style="margin: 16px 0;">
-
-                <div class="info-grid">
-                    <div class="info-card-item">
-                        <h4>Passenger Name(s)</h4>
-                        <p><?php echo htmlspecialchars($booking["passenger_name"]); ?></p>
+            <!-- Booking Details Card -->
+            <div class="card booking-section">
+                <?php if ($booking['service_type'] === 'Flight'): ?>
+                    <h2>Flight and ticket details</h2>
+                    <hr style="margin: 16px 0;">
+                    <div class="info-grid">
+                        <div class="info-card-item">
+                            <h4>Passenger Name(s)</h4>
+                            <p><?php echo htmlspecialchars($booking["passenger_name"]); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>PNR Code</h4>
+                            <p style="font-family: monospace; color: var(--accent-color); font-size: 16px;"><?php echo htmlspecialchars($booking["pnr"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Ticket Number(s)</h4>
+                            <p style="font-family: monospace;"><?php echo htmlspecialchars($booking["ticket_number"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Flight Number</h4>
+                            <p style="font-family: monospace;"><?php echo htmlspecialchars($booking["flight_number"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Airline Name</h4>
+                            <p><?php echo htmlspecialchars($booking["airline_name"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>From (Origin)</h4>
+                            <p><?php echo htmlspecialchars($booking["from_city"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>To (Destination)</h4>
+                            <p><?php echo htmlspecialchars($booking["to_city"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Departure Details</h4>
+                            <p>
+                                <?php echo htmlspecialchars($booking["departure_date"] ?: '-'); ?>
+                                <?php if ($booking["departure_time"]): ?> @ <?php echo htmlspecialchars($booking["departure_time"]); ?><?php endif; ?>
+                            </p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Arrival Details</h4>
+                            <p>
+                                <?php echo htmlspecialchars($booking["arrival_date"] ?: '-'); ?>
+                                <?php if ($booking["arrival_time"]): ?> @ <?php echo htmlspecialchars($booking["arrival_time"]); ?><?php endif; ?>
+                            </p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Class</h4>
+                            <p><?php echo htmlspecialchars($booking["flight_class"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Customer / Agency</h4>
+                            <p><?php echo htmlspecialchars($booking["customer_name"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Supplier</h4>
+                            <p><?php echo htmlspecialchars($booking["supplier_name"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item" style="border-bottom: none;">
+                            <h4>Service Type</h4>
+                            <p><?php echo htmlspecialchars($booking["service_type"]); ?></p>
+                        </div>
                     </div>
-                    <div class="info-card-item">
-                        <h4>PNR Code</h4>
-                        <p style="font-family: monospace; color: var(--accent-color); font-size: 16px;"><?php echo htmlspecialchars($booking["pnr"] ?: '-'); ?></p>
+                <?php elseif ($booking['service_type'] === 'Hotel'): ?>
+                    <h2>Hotel voucher details</h2>
+                    <hr style="margin: 16px 0;">
+                    <div class="info-grid">
+                        <div class="info-card-item">
+                            <h4>Passenger Name(s)</h4>
+                            <p><?php echo htmlspecialchars($booking["passenger_name"]); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Hotel Name</h4>
+                            <p><?php echo htmlspecialchars($booking["hotel_name"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Location / City</h4>
+                            <p><?php echo htmlspecialchars($booking["hotel_location"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Check-in Date</h4>
+                            <p><?php echo htmlspecialchars($booking["hotel_check_in"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Check-out Date</h4>
+                            <p><?php echo htmlspecialchars($booking["hotel_check_out"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Room Type</h4>
+                            <p><?php echo htmlspecialchars($booking["hotel_room_type"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Number of Rooms</h4>
+                            <p><?php echo $booking["hotel_rooms_count"] !== null ? htmlspecialchars($booking["hotel_rooms_count"]) : '-'; ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Confirmation Number</h4>
+                            <p style="font-family: monospace;"><?php echo htmlspecialchars($booking["hotel_confirmation_no"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Customer / Agency</h4>
+                            <p><?php echo htmlspecialchars($booking["customer_name"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Supplier</h4>
+                            <p><?php echo htmlspecialchars($booking["supplier_name"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item" style="border-bottom: none;">
+                            <h4>Service Type</h4>
+                            <p><?php echo htmlspecialchars($booking["service_type"]); ?></p>
+                        </div>
                     </div>
-                    <div class="info-card-item">
-                        <h4>Ticket Number(s)</h4>
-                        <p style="font-family: monospace;"><?php echo htmlspecialchars($booking["ticket_number"] ?: '-'); ?></p>
+                <?php elseif ($booking['service_type'] === 'Visa'): ?>
+                    <h2>Visa details</h2>
+                    <hr style="margin: 16px 0;">
+                    <div class="info-grid">
+                        <div class="info-card-item">
+                            <h4>Passenger Name(s)</h4>
+                            <p><?php echo htmlspecialchars($booking["passenger_name"]); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Visa Type</h4>
+                            <p><?php echo htmlspecialchars($booking["visa_type"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Destination Country</h4>
+                            <p><?php echo htmlspecialchars($booking["visa_country"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Application Number</h4>
+                            <p style="font-family: monospace;"><?php echo htmlspecialchars($booking["visa_app_no"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Submission Date</h4>
+                            <p><?php echo htmlspecialchars($booking["visa_submission_date"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Expected Delivery Date</h4>
+                            <p><?php echo htmlspecialchars($booking["visa_delivery_date"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Validity From</h4>
+                            <p><?php echo htmlspecialchars($booking["visa_valid_from"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Validity To</h4>
+                            <p><?php echo htmlspecialchars($booking["visa_valid_to"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Customer / Agency</h4>
+                            <p><?php echo htmlspecialchars($booking["customer_name"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Supplier</h4>
+                            <p><?php echo htmlspecialchars($booking["supplier_name"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item" style="border-bottom: none;">
+                            <h4>Service Type</h4>
+                            <p><?php echo htmlspecialchars($booking["service_type"]); ?></p>
+                        </div>
                     </div>
-                    <div class="info-card-item">
-                        <h4>Flight Number</h4>
-                        <p style="font-family: monospace;"><?php echo htmlspecialchars($booking["flight_number"] ?: '-'); ?></p>
+                <?php elseif ($booking['service_type'] === 'Travel Insurance'): ?>
+                    <h2>Travel insurance details</h2>
+                    <hr style="margin: 16px 0;">
+                    <div class="info-grid">
+                        <div class="info-card-item">
+                            <h4>Passenger Name(s)</h4>
+                            <p><?php echo htmlspecialchars($booking["passenger_name"]); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Insurance Provider</h4>
+                            <p><?php echo htmlspecialchars($booking["insurance_provider"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Policy Number</h4>
+                            <p style="font-family: monospace;"><?php echo htmlspecialchars($booking["insurance_policy_no"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Coverage Type</h4>
+                            <p><?php echo htmlspecialchars($booking["insurance_coverage_type"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Destination</h4>
+                            <p><?php echo htmlspecialchars($booking["insurance_destination"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Coverage Start Date</h4>
+                            <p><?php echo htmlspecialchars($booking["insurance_start_date"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Coverage End Date</h4>
+                            <p><?php echo htmlspecialchars($booking["insurance_end_date"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Sum Insured</h4>
+                            <p><?php echo $booking["insurance_sum_insured"] !== null ? '₹' . number_format($booking["insurance_sum_insured"], 2) : '-'; ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Customer / Agency</h4>
+                            <p><?php echo htmlspecialchars($booking["customer_name"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Supplier</h4>
+                            <p><?php echo htmlspecialchars($booking["supplier_name"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item" style="border-bottom: none;">
+                            <h4>Service Type</h4>
+                            <p><?php echo htmlspecialchars($booking["service_type"]); ?></p>
+                        </div>
                     </div>
-                    <div class="info-card-item">
-                        <h4>Airline Name</h4>
-                        <p><?php echo htmlspecialchars($booking["airline_name"] ?: '-'); ?></p>
+                <?php else: ?>
+                    <h2>Holiday package details</h2>
+                    <hr style="margin: 16px 0;">
+                    <div class="info-grid">
+                        <div class="info-card-item">
+                            <h4>Passenger Name(s)</h4>
+                            <p><?php echo htmlspecialchars($booking["passenger_name"]); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Package Name</h4>
+                            <p><?php echo htmlspecialchars($booking["package_name"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Destination(s)</h4>
+                            <p><?php echo htmlspecialchars($booking["package_destinations"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Package Type</h4>
+                            <p><?php echo htmlspecialchars($booking["package_type"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Start Date</h4>
+                            <p><?php echo htmlspecialchars($booking["package_start_date"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>End Date</h4>
+                            <p><?php echo htmlspecialchars($booking["package_end_date"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Number of Adults</h4>
+                            <p><?php echo $booking["package_adults_count"] !== null ? htmlspecialchars($booking["package_adults_count"]) : '-'; ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Number of Children</h4>
+                            <p><?php echo $booking["package_children_count"] !== null ? htmlspecialchars($booking["package_children_count"]) : '-'; ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Accommodation</h4>
+                            <p><?php echo htmlspecialchars($booking["package_accommodation"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Meals</h4>
+                            <p><?php echo htmlspecialchars($booking["package_meals"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Customer / Agency</h4>
+                            <p><?php echo htmlspecialchars($booking["customer_name"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item">
+                            <h4>Supplier</h4>
+                            <p><?php echo htmlspecialchars($booking["supplier_name"] ?: '-'); ?></p>
+                        </div>
+                        <div class="info-card-item" style="border-bottom: none;">
+                            <h4>Service Type</h4>
+                            <p><?php echo htmlspecialchars($booking["service_type"]); ?></p>
+                        </div>
                     </div>
-                    <div class="info-card-item">
-                        <h4>From (Origin)</h4>
-                        <p><?php echo htmlspecialchars($booking["from_city"] ?: '-'); ?></p>
-                    </div>
-                    <div class="info-card-item">
-                        <h4>To (Destination)</h4>
-                        <p><?php echo htmlspecialchars($booking["to_city"] ?: '-'); ?></p>
-                    </div>
-                    <div class="info-card-item">
-                        <h4>Departure Details</h4>
-                        <p>
-                            <?php echo htmlspecialchars($booking["departure_date"] ?: '-'); ?>
-                            <?php if ($booking["departure_time"]): ?> @ <?php echo htmlspecialchars($booking["departure_time"]); ?><?php endif; ?>
-                        </p>
-                    </div>
-                    <div class="info-card-item">
-                        <h4>Arrival Details</h4>
-                        <p>
-                            <?php echo htmlspecialchars($booking["arrival_date"] ?: '-'); ?>
-                            <?php if ($booking["arrival_time"]): ?> @ <?php echo htmlspecialchars($booking["arrival_time"]); ?><?php endif; ?>
-                        </p>
-                    </div>
-                    <div class="info-card-item">
-                        <h4>Customer / Agency</h4>
-                        <p><?php echo htmlspecialchars($booking["customer_name"] ?: '-'); ?></p>
-                    </div>
-
-                    <div class="info-card-item">
-                        <h4>Supplier</h4>
-                        <p><?php echo htmlspecialchars($booking["supplier_name"] ?: '-'); ?></p>
-                    </div>
-                    <div class="info-card-item" style="border-bottom: none;">
-                        <h4>Service Type</h4>
-                        <p><?php echo htmlspecialchars($booking["service_type"] ?: 'Flight'); ?></p>
-                    </div>
-                </div>
+                    <?php if (!empty($booking["package_itinerary"])): ?>
+                        <div style="margin-top: 16px; padding: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-dark); border-radius: 8px;">
+                            <h4 style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 4px; font-weight: 600;">Package Itinerary / Notes</h4>
+                            <p style="font-size: 13px; margin: 0; color: var(--text-main); white-space: pre-wrap;"><?php echo htmlspecialchars($booking["package_itinerary"]); ?></p>
+                        </div>
+                    <?php endif; ?>
+                <?php endif; ?>
 
                 <?php if (!empty($booking["remarks"])): ?>
                     <div style="margin-top: 24px; padding: 16px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-dark); border-radius: 8px;">
@@ -294,8 +495,8 @@ $selling_cost = floatval($booking['selling_cost']);
             </div>
 
             <!-- Attachments Card -->
-            <div class="card">
-                <h2>📁 Booking Attachments (Visa, Voucher, Ticket etc.)</h2>
+            <div class="card booking-section booking-attachments-card">
+                <h2>Documents and attachments</h2>
                 <hr style="margin: 16px 0;">
 
                 <div style="display: grid; grid-template-columns: 1fr; gap: 24px;">
@@ -321,7 +522,7 @@ $selling_cost = floatval($booking['selling_cost']);
                                             <strong style="font-size: 14px; color: var(--text-primary);"><?php echo htmlspecialchars($att['file_name']); ?></strong>
                                             <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">
                                                 Type: <span style="text-transform: uppercase; font-weight:600;"><?php echo htmlspecialchars($att['file_type']); ?></span> 
-                                                &nbsp;•&nbsp; Uploaded: <?php echo date('M d, Y', strtotime($att['uploaded_at'])); ?>
+                                                &nbsp;•&nbsp; Uploaded: <?php $uploaded_at = $att['uploaded_at'] ?? $att['created_at'] ?? null; echo $uploaded_at ? date('M d, Y', strtotime($uploaded_at)) : 'Unknown'; ?>
                                             </div>
                                         </div>
                                     </div>
@@ -366,8 +567,8 @@ $selling_cost = floatval($booking['selling_cost']);
                                 <label for="custom_name">Custom Label / File Name (Optional)</label>
                                 <input type="text" id="custom_name" name="custom_name" placeholder="e.g. Passenger Visa PDF">
                             </div>
-                            <button type="submit" name="upload_attachment" style="background: var(--accent-color); color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer;">
-                                📤 Upload Attachment
+                            <button type="submit" name="upload_attachment" class="booking-upload-button">
+                                Upload document
                             </button>
                         </form>
                     </div>
@@ -376,11 +577,11 @@ $selling_cost = floatval($booking['selling_cost']);
         </div>
 
         <!-- Right Column: Financial Card & Log Details -->
-        <div style="display: flex; flex-direction: column; gap: 24px;">
+        <div class="booking-side-column">
             
             <!-- Financial Card -->
-            <div class="card" style="background: linear-gradient(135deg, #163552 0%, #0d283f 100%); color: white; border: none;">
-                <h2 style="color: white; font-size: 18px; margin-bottom: 20px;">Financial Details</h2>
+            <div class="card booking-finance-card">
+                <h2 style="color: white; font-size: 18px; margin-bottom: 20px;">Payment summary</h2>
                 
                 <div style="margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px;">
                     <p style="font-size: 11px; color: #cbd5e1; text-transform: uppercase; margin: 0 0 4px 0;">Selling Cost</p>
@@ -404,8 +605,8 @@ $selling_cost = floatval($booking['selling_cost']);
             </div>
 
             <!-- Activity Log Card -->
-            <div class="card">
-                <h2>System Logs</h2>
+            <div class="card booking-log-card">
+                <h2>Activity history</h2>
                 <hr style="margin: 16px 0;">
 
                 <div style="font-size: 13px; display: flex; flex-direction: column; gap: 16px;">
@@ -424,8 +625,8 @@ $selling_cost = floatval($booking['selling_cost']);
                     <?php endif; ?>
 
                     <form method="POST" onsubmit="return confirm('Are you sure you want to delete this booking record permanently?');" style="margin-top: 8px;">
-                        <button type="submit" name="delete" class="btn btn-danger" style="width: 100%; background: #ef4444; border: none; color: white;">
-                            🗑 Delete Booking Record
+                        <button type="submit" name="delete" class="btn btn-danger booking-delete-button">
+                            Delete booking
                         </button>
                     </form>
                 </div>
@@ -435,7 +636,7 @@ $selling_cost = floatval($booking['selling_cost']);
 
     </div>
 
-</div>
+</main>
 
 </body>
 </html>

@@ -71,25 +71,14 @@ if (isset($_POST["save_enquiry"])) {
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Add Enquiry | Travel CRM</title>
+    <title>Add Enquiry | <?= htmlspecialchars(COMPANY_NAME) ?></title>
     <link rel="stylesheet" href="../../assets/css/style.css">
     <script>if(localStorage.getItem("sidebar-locked")==="true")document.documentElement.classList.add("sidebar-pref-locked");</script>
     <script src="../../assets/js/sidebar.js" defer></script>
 </head>
 <body>
 
-<div class="sidebar">
-    <h2 class="logo">✈ Travel CRM</h2>
-    <a href="../dashboard.php">Dashboard</a>
-    <a href="../master/list.php">Master</a>
-    <a href="../bookings/list.php">Bookings</a>
-    <a href="../bookings/add.php">Add Booking</a>
-    <a href="../bookings/reports.php">Reports</a>
-    <a href="list.php" class="active">Enquiry</a>
-    <a href="../tasks/index.php">Tasks</a>
-    <a href="../admin/activity.php">Activity</a>
-    <a href="../../login.php" class="logout">Logout</a>
-</div>
+<?php include(__DIR__ . "/../../includes/sidebar.php"); ?>
 
 <div class="main">
     <div class="header">

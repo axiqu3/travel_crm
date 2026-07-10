@@ -13,7 +13,7 @@ $res = mysqli_query($db, $fetch_query);
 $cust = mysqli_fetch_assoc($res);
 
 if (!$cust) {
-    echo "<div style='padding: 40px; text-align: center; font-family: sans-serif;'><h2>Customer not found.</h2><a href='list.php'>Back to list</a></div>";
+    echo "<div style='padding: 40px; text-align: center; font-family: sans-serif;'><h2>Customer not found.</h2><a href='list.php'>Back to master</a></div>";
     exit;
 }
 
@@ -136,25 +136,14 @@ if (isset($_POST["update"])) {
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Edit Customer | Travel CRM</title>
+    <title>Edit Customer | <?= htmlspecialchars(COMPANY_NAME) ?></title>
     <link rel="stylesheet" href="../../assets/css/style.css">
     <script>if(localStorage.getItem("sidebar-locked")==="true")document.documentElement.classList.add("sidebar-pref-locked");</script>
     <script src="../../assets/js/sidebar.js" defer></script>
 </head>
 <body>
 
-<div class="sidebar">
-    <h2 class="logo">✈ Travel CRM</h2>
-    <a href="../dashboard.php">Dashboard</a>
-    <a href="list.php" class="active">Master</a>
-    <a href="../bookings/list.php">Bookings</a>
-    <a href="../bookings/add.php">Add Booking</a>
-    <a href="../bookings/reports.php">Reports</a>
-    <a href="../enquiry/list.php"<?= (strpos($_SERVER['PHP_SELF'], '/enquiry/') !== false) ? ' class="active"' : '' ?>>Enquiry</a>
-    <a href="../tasks/index.php">Tasks</a>
-    <a href="../admin/activity.php">Activity</a>
-    <a href="../../login.php" class="logout">Logout</a>
-</div>
+<?php include(__DIR__ . "/../../includes/sidebar.php"); ?>
 
 <div class="main">
     <div class="header">

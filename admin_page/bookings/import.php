@@ -131,25 +131,14 @@ if (isset($_POST["import_excel"])) {
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Import Bookings | Travel CRM</title>
+    <title>Import Bookings | <?= htmlspecialchars(COMPANY_NAME) ?></title>
     <link rel="stylesheet" href="../../assets/css/style.css">
     <script>if(localStorage.getItem("sidebar-locked")==="true")document.documentElement.classList.add("sidebar-pref-locked");</script>
     <script src="../../assets/js/sidebar.js" defer></script>
 </head>
 <body>
 
-<div class="sidebar">
-    <h2 class="logo">✈ Travel CRM</h2>
-    <a href="../dashboard.php">Dashboard</a>
-    <a href="../master/list.php">Master</a>
-    <a href="list.php" class="active">Bookings</a>
-    <a href="add.php">Add Booking</a>
-    <a href="reports.php">Reports</a>
-    <a href="../enquiry/list.php"<?= (strpos($_SERVER['PHP_SELF'], '/enquiry/') !== false) ? ' class="active"' : '' ?>>Enquiry</a>
-    <a href="../tasks/index.php">Tasks</a>
-    <a href="../admin/activity.php">Activity</a>
-    <a href="../../login.php" class="logout">Logout</a>
-</div>
+<?php include(__DIR__ . "/../../includes/sidebar.php"); ?>
 
 <div class="main">
     <div class="header">

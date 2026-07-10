@@ -63,7 +63,7 @@ $data = mysqli_query($db, $query);
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Customer Master | Travel CRM</title>
+    <title>Customer Master | <?= htmlspecialchars(COMPANY_NAME) ?></title>
     <link rel="stylesheet" href="../../assets/css/style.css">
     <script>if(localStorage.getItem("sidebar-locked")==="true")document.documentElement.classList.add("sidebar-pref-locked");</script>
     <script src="../../assets/js/sidebar.js" defer></script>
@@ -100,33 +100,32 @@ $data = mysqli_query($db, $query);
 </head>
 <body>
 
-<div class="sidebar">
-    <h2 class="logo">✈ Travel CRM</h2>
-    <a href="../dashboard.php">Dashboard</a>
-    <a href="list.php" class="active">Master</a>
-    <a href="../bookings/list.php">Bookings</a>
-    <a href="../bookings/add.php">Add Booking</a>
-    <a href="../bookings/reports.php">Reports</a>
-    <a href="../enquiry/list.php"<?= (strpos($_SERVER['PHP_SELF'], '/enquiry/') !== false) ? ' class="active"' : '' ?>>Enquiry</a>
-    <a href="../tasks/index.php">Tasks</a>
-    <a href="../admin/activity.php">Activity</a>
-    <a href="../../login.php" class="logout">Logout</a>
-</div>
+<?php include(__DIR__ . "/../../includes/sidebar.php"); ?>
 
 <div class="main">
-    <div class="header">
-        <input class="search" placeholder="Search customer...">
-        <span class="notify">🔔</span>
-        <a href="../profile/index.php" class="profile-widget">
-            <span>👤 Profile</span>
-        </a>
-    </div>
-
+    <?php
+    $title_display = "Customer Master";
+    if ($filter_type === "B2B") {
+        $title_display = "B2B Customers";
+    } elseif ($filter_type === "Corporate") {
+        $title_display = "Corporate Customers";
+    } elseif ($filter_type === "Walk-in Customer") {
+        $title_display = "Walk-in Customers";
+    } elseif ($filter_type === "User") {
+        $title_display = "Users";
+    }
+    ?>
     <div class="dashboard-title-row">
-        <h1>Customer Master</h1>
+        <h1><?php echo htmlspecialchars($title_display); ?></h1>
         <a href="add.php" class="btn">+ Add Customer</a>
     </div>
     
+    <!-- Sticky Search Bar -->
+    <div class="search-bar-container">
+        <input type="text" class="search" placeholder="Search customers by name, company, mobile, type...">
+    </div>
+    
+    <?php if (empty($filter_type)): ?>
     <div class="card" style="margin-bottom: 20px; padding: 20px;">
         <form method="GET" action="" style="display: flex; gap: 16px; align-items: flex-end;">
             <div style="flex: 1; max-width: 250px;">
@@ -143,6 +142,7 @@ $data = mysqli_query($db, $query);
             <a href="list.php" class="btn btn-secondary" style="padding: 10px 20px; height: 38px; display: inline-flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.1); border: 1px solid var(--border-dark); color: var(--text-main);">Reset</a>
         </form>
     </div>
+    <?php endif; ?>
 
     <hr>
 

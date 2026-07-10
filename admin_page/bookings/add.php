@@ -551,7 +551,7 @@ if (isset($_POST["save_booking"])) {
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Add Booking | Travel CRM</title>
+    <title>Add Booking | <?= htmlspecialchars(COMPANY_NAME) ?></title>
     <link rel="stylesheet" href="../../assets/css/style.css">
     <script>if(localStorage.getItem("sidebar-locked")==="true")document.documentElement.classList.add("sidebar-pref-locked");</script>
     <script src="../../assets/js/sidebar.js" defer></script>
@@ -821,22 +821,39 @@ if (isset($_POST["save_booking"])) {
     background: #dcfce7;
     color: #166534;
 }
+
+/* Booking add page uses the shared premium navigation rail. */
+.booking-add-screen .sidebar,
+.booking-add-screen .sidebar:hover,
+.booking-add-screen .sidebar.locked,
+html.sidebar-pref-locked .booking-add-screen .sidebar {
+    background: #f1f5f9;
+    border-color: #dbe3ea;
+}
+
+.booking-add-screen .sidebar .nav-dropdown-btn.parent-active {
+    background: #e2e8f0;
+    color: #0d283f;
+}
+
+.booking-add-screen .sidebar .nav-subitem.active {
+    background: #ffffff;
+    color: #0d283f;
+    box-shadow: inset 3px 0 0 #0d283f;
+}
+
+@media (max-width: 900px) {
+    .booking-add-screen .main,
+    .booking-add-screen .main.sidebar-locked,
+    html.sidebar-pref-locked .booking-add-screen .main {
+        margin-left: 0 !important;
+    }
+}
 </style>
 </head>
-<body>
+<body class="booking-add-screen">
 
-<div class="sidebar">
-    <h2 class="logo">✈ Travel CRM</h2>
-    <a href="../dashboard.php">Dashboard</a>
-    <a href="../master/list.php">Master</a>
-    <a href="list.php">Bookings</a>
-    <a href="add.php" class="active">Add Booking</a>
-    <a href="reports.php">Reports</a>
-    <a href="../enquiry/list.php"<?= (strpos($_SERVER['PHP_SELF'], '/enquiry/') !== false) ? ' class="active"' : '' ?>>Enquiry</a>
-    <a href="../tasks/index.php">Tasks</a>
-    <a href="../admin/activity.php">Activity</a>
-    <a href="../../login.php" class="logout">Logout</a>
-</div>
+<?php include(__DIR__ . "/../../includes/sidebar.php"); ?>
 
 <div class="main">
     <div class="header">
@@ -1555,4 +1572,3 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 </body>
 </html>
-

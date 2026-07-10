@@ -7,11 +7,20 @@ $user_id = intval($_SESSION['user_id'] ?? 0);
 $message = "";
 $message_type = "";
 
+function admin_profile_initials($name) {
+    $parts = preg_split('/\s+/', trim((string) $name));
+    $initials = '';
+    foreach (array_slice($parts, 0, 2) as $part) {
+        $initials .= strtoupper(substr($part, 0, 1));
+    }
+    return $initials ?: 'AD';
+}
+
 // Handle Update Request
 if (isset($_POST['update_profile'])) {
-    $name = mysqli_real_escape_string($db, $_POST['name']);
-    $email = mysqli_real_escape_string($db, $_POST['email']);
-    
+    $name = mysqli_real_escape_string($db, trim($_POST['name'] ?? ''));
+    $email = mysqli_real_escape_string($db, trim($_POST['email'] ?? ''));
+
     // Check password
     $password_sql = "";
     if (!empty($_POST['password'])) {
@@ -22,138 +31,186 @@ if (isset($_POST['update_profile'])) {
             $hashed = mysqli_real_escape_string($db, $hashed);
             $password_sql = ", password = '$hashed'";
         } else {
-            $message = "Passwords do not match!";
+            $message = "Passwords do not match.";
             $message_type = "error";
         }
     }
-    
+
     if (empty($message)) {
         $update_query = "UPDATE users SET name = '$name', email = '$email' $password_sql WHERE id = $user_id";
         if (mysqli_query($db, $update_query)) {
             $_SESSION['user_name'] = $name;
-            $message = "Profile details updated successfully!";
-            $message_type = "success";
+            $_SESSION['user_email'] = $email;
+
+            if (isset($_POST['company_name'])) {
+                $new_company = mysqli_real_escape_string($db, trim($_POST['company_name']));
+                mysqli_query($db, "INSERT INTO settings (`key`, `value`) VALUES ('company_name', '$new_company') ON DUPLICATE KEY UPDATE `value` = '$new_company'");
+            }
+
+            header("Location: index.php?updated=true");
+            exit();
         } else {
-            $message = "Database Error: " . mysqli_error($db);
+            $message = "Unable to update the administrator profile. Please try again.";
             $message_type = "error";
         }
     }
 }
 
+if (isset($_GET['updated'])) {
+    $message = "Profile details updated successfully.";
+    $message_type = "success";
+}
+
 // Fetch current logged-in user details
 $admin_query = mysqli_query($db, "SELECT * FROM users WHERE id = $user_id");
-$admin = mysqli_fetch_assoc($admin_query);
+$admin = $admin_query ? mysqli_fetch_assoc($admin_query) : null;
 
 if (!$admin) {
     $admin = [
         'name' => $_SESSION['user_name'] ?? 'Admin User',
-        'email' => 'admin@gmail.com',
+        'email' => $_SESSION['user_email'] ?? 'admin@gmail.com',
         'role' => 'admin'
     ];
 }
 ?>
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Profile | Travel CRM</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administrator Profile | <?= htmlspecialchars(COMPANY_NAME) ?></title>
     <link rel="stylesheet" href="../../assets/css/style.css">
+    <link rel="stylesheet" href="../../assets/css/premium-dashboard.css">
+    <link rel="stylesheet" href="../../assets/css/premium-profile.css">
     <script>if(localStorage.getItem("sidebar-locked")==="true")document.documentElement.classList.add("sidebar-pref-locked");</script>
     <script src="../../assets/js/sidebar.js" defer></script>
 </head>
 <body>
 
-<div class="sidebar">
-    <h2 class="logo">✈ Travel CRM</h2>
-    <a href="../dashboard.php">Dashboard</a>
-    <a href="../master/list.php">Master</a>
-    <a href="../bookings/list.php">Bookings</a>
-    <a href="../bookings/add.php">Add Booking</a>
-    <a href="../bookings/reports.php">Reports</a>
-    <a href="../enquiry/list.php"<?= (strpos($_SERVER['PHP_SELF'], '/enquiry/') !== false) ? ' class="active"' : '' ?>>Enquiry</a>
-    <a href="../tasks/index.php">Tasks</a>
-    <a href="../admin/activity.php">Activity</a>
-    <a href="../../login.php" class="logout">Logout</a>
-</div>
+<?php include(__DIR__ . "/../../includes/sidebar.php"); ?>
 
-<div class="main">
-    <div class="header">
-        <input class="search" placeholder="Search...">
-        <span class="notify">🔔</span>
-        <a href="index.php" class="profile-widget">
-            <span>👤 Profile</span>
-        </a>
-    </div>
-
-    <div class="dashboard-title-row">
-        <h1>Administrator Profile</h1>
-        <a href="../dashboard.php" class="btn btn-secondary">Back to Dashboard</a>
-    </div>
-    
-    <hr>
+<main class="main crm-dashboard profile-workspace">
+    <header class="crm-topbar profile-topbar">
+        <div>
+            <p class="crm-eyebrow">Administrator settings</p>
+            <h1>Administrator profile</h1>
+            <p class="crm-subtitle">Manage your identity, company details and account security.</p>
+        </div>
+        <div class="crm-topbar-actions">
+            <a href="../dashboard.php" class="profile-back-link"><span aria-hidden="true">&larr;</span> Back to dashboard</a>
+            <span class="crm-avatar" aria-hidden="true"><?php echo htmlspecialchars(admin_profile_initials($admin['name'])); ?></span>
+        </div>
+    </header>
 
     <?php if (!empty($message)): ?>
-        <div style="padding: 12px 20px; border-radius: 12px; margin-bottom: 20px; font-weight: 600;
-            background: <?php echo $message_type === 'success' ? '#d1fae5' : '#fee2e2'; ?>;
-            color: <?php echo $message_type === 'success' ? '#065f46' : '#991b1b'; ?>;
-            border: 1px solid <?php echo $message_type === 'success' ? '#a7f3d0' : '#fecaca'; ?>;">
-            <?php echo $message; ?>
+        <div class="profile-alert <?php echo $message_type === 'success' ? 'is-success' : 'is-error'; ?>" role="alert" aria-live="polite">
+            <?php echo htmlspecialchars($message); ?>
         </div>
     <?php endif; ?>
 
-    <div class="bottom-grid" style="grid-template-columns: 2fr 1fr; gap: 30px;">
-        <!-- Left: Form Mock -->
-        <div class="card">
-            <h2 style="font-size: 18px; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">Security & Account Settings</h2>
-            
+    <div class="profile-layout">
+        <aside class="profile-summary" aria-label="Administrator summary">
+            <div class="profile-cover"></div>
+            <div class="profile-summary-body">
+                <div class="profile-avatar-large" aria-hidden="true"><?php echo htmlspecialchars(admin_profile_initials($admin['name'])); ?></div>
+                <h2><?php echo htmlspecialchars($admin['name']); ?></h2>
+                <span class="profile-email"><?php echo htmlspecialchars($admin['email']); ?></span>
+                <span class="profile-role"><?php echo htmlspecialchars(ucfirst($admin['role'])); ?> account</span>
+
+                <div class="profile-facts">
+                    <div class="profile-fact">
+                        <span>Account status</span>
+                        <strong class="is-active">Active</strong>
+                    </div>
+                    <div class="profile-fact">
+                        <span>Access level</span>
+                        <strong>Full control</strong>
+                    </div>
+                    <div class="profile-fact">
+                        <span>Workspace</span>
+                        <strong><?= htmlspecialchars(COMPANY_NAME) ?></strong>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <section class="profile-form-card" aria-labelledby="admin-details-title">
             <form method="POST">
-                <div class="form-group">
-                    <label for="name">Admin Name</label>
-                    <input type="text" id="name" name="name" value="<?php echo htmlspecialchars($admin['name']); ?>" required>
-                </div>
-
-                <div class="form-group">
-                    <label for="email">Email Address</label>
-                    <input type="email" id="email" name="email" value="<?php echo htmlspecialchars($admin['email']); ?>" required>
-                </div>
-
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="password">Change Password</label>
-                        <input type="password" id="password" name="password" placeholder="••••••••">
+                <div class="profile-section-header">
+                    <div>
+                        <p class="profile-section-kicker">Account information</p>
+                        <h2 id="admin-details-title">Administrator details</h2>
                     </div>
-                    <div class="form-group">
-                        <label for="confirm">Confirm Password</label>
-                        <input type="password" id="confirm" name="confirm" placeholder="••••••••">
+                    <span>Required fields</span>
+                </div>
+
+                <div class="profile-form-grid">
+                    <div class="profile-field">
+                        <label for="name">Administrator name</label>
+                        <input type="text" id="name" name="name" value="<?php echo htmlspecialchars($admin['name']); ?>" placeholder="Enter administrator name" required autocomplete="name">
+                    </div>
+
+                    <div class="profile-field">
+                        <label for="email">Email address</label>
+                        <input type="email" id="email" name="email" value="<?php echo htmlspecialchars($admin['email']); ?>" placeholder="admin@company.com" required autocomplete="email">
+                    </div>
+
+                    <div class="profile-field is-full">
+                        <label for="company_name">Travel agency company name</label>
+                        <input type="text" id="company_name" name="company_name" value="<?php echo htmlspecialchars(COMPANY_NAME); ?>" placeholder="Enter company name" required autocomplete="organization">
+                        <p class="profile-field-help">This name appears throughout the CRM workspace.</p>
                     </div>
                 </div>
 
-                <button type="submit" name="update_profile">Update Administrator Profile</button>
+                <hr class="profile-divider">
+
+                <div class="profile-section-header">
+                    <div>
+                        <p class="profile-section-kicker">Account security</p>
+                        <h2>Change password</h2>
+                    </div>
+                    <span>Optional</span>
+                </div>
+
+                <div class="profile-form-grid">
+                    <div class="profile-field">
+                        <label for="password">New password</label>
+                        <div class="profile-password-wrap">
+                            <input type="password" id="password" name="password" placeholder="Enter a new password" autocomplete="new-password">
+                            <button type="button" class="profile-password-toggle" data-password-toggle="password" aria-label="Show new password" aria-pressed="false">Show</button>
+                        </div>
+                        <p class="profile-field-help">Leave blank to keep your current password.</p>
+                    </div>
+
+                    <div class="profile-field">
+                        <label for="confirm">Confirm new password</label>
+                        <div class="profile-password-wrap">
+                            <input type="password" id="confirm" name="confirm" placeholder="Repeat the new password" autocomplete="new-password">
+                            <button type="button" class="profile-password-toggle" data-password-toggle="confirm" aria-label="Show confirmed password" aria-pressed="false">Show</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="profile-actions">
+                    <a href="../dashboard.php" class="profile-cancel">Cancel</a>
+                    <button type="submit" name="update_profile" class="profile-save">Save administrator profile <span aria-hidden="true">&rarr;</span></button>
+                </div>
             </form>
-        </div>
-
-        <!-- Right Card -->
-        <div class="card" style="text-align: center; padding: 40px 24px;">
-            <div style="width: 90px; height: 90px; border-radius: 50%; background: #fee2e2; color: #b91c1c; font-size: 40px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 20px; font-weight: 700; border: 4px solid #fff; box-shadow: var(--shadow-md);">
-                <?php echo strtoupper(substr($admin['name'] ?: 'A', 0, 1)); ?>
-            </div>
-            
-            <h2 style="font-size: 20px; font-weight: 700; margin-bottom: 4px;"><?php echo htmlspecialchars($admin['name']); ?></h2>
-            <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 16px;"><?php echo htmlspecialchars($admin['email']); ?></p>
-            
-            <span class="badge completed" style="text-transform: uppercase; font-size: 11px; padding: 6px 12px; letter-spacing: 0.5px;">
-                Role: <?php echo htmlspecialchars(ucfirst($admin['role'])); ?>
-            </span>
-
-            <div style="margin-top: 32px; border-top: 1px solid var(--border-color); padding-top: 24px; text-align: left;">
-                <h4 style="font-size: 12px; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px;">System Access</h4>
-                <div class="d-flex align-center gap-2" style="font-size: 13px; color: var(--status-booked-text);">
-                    <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#10b981;"></span>
-                    Root Administrator Access
-                </div>
-            </div>
-        </div>
+        </section>
     </div>
-</div>
+</main>
+
+<script>
+document.querySelectorAll('[data-password-toggle]').forEach((button) => {
+    button.addEventListener('click', () => {
+        const input = document.getElementById(button.dataset.passwordToggle);
+        const isHidden = input.type === 'password';
+        input.type = isHidden ? 'text' : 'password';
+        button.textContent = isHidden ? 'Hide' : 'Show';
+        button.setAttribute('aria-pressed', String(isHidden));
+    });
+});
+</script>
 
 </body>
 </html>

@@ -1,16 +1,31 @@
 <?php
 
+$db_config = [
+    'host' => '127.0.0.1',
+    'username' => 'root',
+    'password' => '',
+    'database' => 'travel_crm',
+    'port' => 3307,
+];
+
+$local_config_file = __DIR__ . '/db.local.php';
+if (is_file($local_config_file)) {
+    $local_config = require $local_config_file;
+    if (is_array($local_config)) {
+        $db_config = array_merge($db_config, $local_config);
+    }
+}
+
 $db = mysqli_connect(
-"127.0.0.1",
-"root",
-"",
-"travel_crm",
-3307
+    $db_config['host'],
+    $db_config['username'],
+    $db_config['password'],
+    $db_config['database'],
+    (int) $db_config['port']
 );
 
-if(!$db)
-{
-die("Database Error");
+if (!$db) {
+    die('Database Error');
 }
 
 
@@ -154,4 +169,55 @@ function get_whatsapp_dropdown($mobile, $vars = []) {
 
 // Auto-ensure customer_type column in bookings table
 ensure_column_exists($db, 'bookings', 'customer_type', "VARCHAR(100) DEFAULT 'Walk-in Customer'");
+
+// Auto-ensure new service-specific columns in bookings table
+ensure_column_exists($db, 'bookings', 'hotel_name', "VARCHAR(255) NULL");
+ensure_column_exists($db, 'bookings', 'hotel_location', "VARCHAR(255) NULL");
+ensure_column_exists($db, 'bookings', 'hotel_check_in', "DATE NULL");
+ensure_column_exists($db, 'bookings', 'hotel_check_out', "DATE NULL");
+ensure_column_exists($db, 'bookings', 'hotel_room_type', "VARCHAR(100) NULL");
+ensure_column_exists($db, 'bookings', 'hotel_rooms_count', "INT NULL");
+ensure_column_exists($db, 'bookings', 'hotel_confirmation_no', "VARCHAR(100) NULL");
+ensure_column_exists($db, 'bookings', 'visa_type', "VARCHAR(100) NULL");
+ensure_column_exists($db, 'bookings', 'visa_country', "VARCHAR(100) NULL");
+ensure_column_exists($db, 'bookings', 'visa_app_no', "VARCHAR(100) NULL");
+ensure_column_exists($db, 'bookings', 'visa_submission_date', "DATE NULL");
+ensure_column_exists($db, 'bookings', 'visa_delivery_date', "DATE NULL");
+ensure_column_exists($db, 'bookings', 'visa_valid_from', "DATE NULL");
+ensure_column_exists($db, 'bookings', 'visa_valid_to', "DATE NULL");
+ensure_column_exists($db, 'bookings', 'insurance_provider', "VARCHAR(255) NULL");
+ensure_column_exists($db, 'bookings', 'insurance_policy_no', "VARCHAR(100) NULL");
+ensure_column_exists($db, 'bookings', 'insurance_coverage_type', "VARCHAR(100) NULL");
+ensure_column_exists($db, 'bookings', 'insurance_destination', "VARCHAR(255) NULL");
+ensure_column_exists($db, 'bookings', 'insurance_start_date', "DATE NULL");
+ensure_column_exists($db, 'bookings', 'insurance_end_date', "DATE NULL");
+ensure_column_exists($db, 'bookings', 'insurance_sum_insured', "DECIMAL(12,2) NULL");
+ensure_column_exists($db, 'bookings', 'package_name', "VARCHAR(255) NULL");
+ensure_column_exists($db, 'bookings', 'package_destinations', "VARCHAR(255) NULL");
+ensure_column_exists($db, 'bookings', 'package_type', "VARCHAR(100) NULL");
+ensure_column_exists($db, 'bookings', 'package_start_date', "DATE NULL");
+ensure_column_exists($db, 'bookings', 'package_end_date', "DATE NULL");
+ensure_column_exists($db, 'bookings', 'package_adults_count', "INT NULL");
+ensure_column_exists($db, 'bookings', 'package_children_count', "INT NULL");
+ensure_column_exists($db, 'bookings', 'package_accommodation', "VARCHAR(50) NULL");
+ensure_column_exists($db, 'bookings', 'package_meals', "VARCHAR(100) NULL");
+ensure_column_exists($db, 'bookings', 'package_itinerary', "TEXT NULL");
+
+// System Settings initialization
+mysqli_query($db, "CREATE TABLE IF NOT EXISTS settings (
+    `key` VARCHAR(100) PRIMARY KEY,
+    `value` TEXT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+
+mysqli_query($db, "INSERT IGNORE INTO settings (`key`, `value`) VALUES ('company_name', 'Travel CRM')");
+
+$settings = [];
+$settings_res = mysqli_query($db, "SELECT * FROM settings");
+if ($settings_res) {
+    while ($row = mysqli_fetch_assoc($settings_res)) {
+        $settings[$row['key']] = $row['value'];
+    }
+}
+define('COMPANY_NAME', $settings['company_name'] ?? 'Travel CRM');
 ?>
+

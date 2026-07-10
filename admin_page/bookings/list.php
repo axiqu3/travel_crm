@@ -46,40 +46,26 @@ $service_types_res = mysqli_query($db, "SELECT DISTINCT service_type FROM bookin
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Bookings List | Travel CRM</title>
+    <title>Bookings List | <?= htmlspecialchars(COMPANY_NAME) ?></title>
     <link rel="stylesheet" href="../../assets/css/style.css">
     <script>if(localStorage.getItem("sidebar-locked")==="true")document.documentElement.classList.add("sidebar-pref-locked");</script>
     <script src="../../assets/js/sidebar.js" defer></script>
 </head>
 <body>
 
-<div class="sidebar">
-    <h2 class="logo">✈ Travel CRM</h2>
-    <a href="../dashboard.php">Dashboard</a>
-    <a href="../master/list.php">Master</a>
-    <a href="list.php" class="active">Bookings</a>
-    <a href="add.php">Add Booking</a>
-    <a href="reports.php">Reports</a>
-    <a href="../enquiry/list.php"<?= (strpos($_SERVER['PHP_SELF'], '/enquiry/') !== false) ? ' class="active"' : '' ?>>Enquiry</a>
-    <a href="../tasks/index.php">Tasks</a>
-    <a href="../admin/activity.php">Activity</a>
-    <a href="../../login.php" class="logout">Logout</a>
-</div>
+<?php include(__DIR__ . "/../../includes/sidebar.php"); ?>
 
 <div class="main">
-    <div class="header">
-        <input class="search" placeholder="Search by passenger, customer, supplier, ticket or PNR...">
-        <span class="notify">🔔</span>
-        <a href="../profile/index.php" class="profile-widget">
-            <span>👤 Profile</span>
-        </a>
-    </div>
-
     <div class="dashboard-title-row">
         <h1>Bookings</h1>
         <div class="d-flex gap-2">
             <a href="add.php" class="btn">+ Add Booking</a>
         </div>
+    </div>
+    
+    <!-- Sticky Search Bar -->
+    <div class="search-bar-container">
+        <input type="text" class="search" placeholder="Search by passenger, customer, supplier, ticket or PNR...">
     </div>
     
     <div class="card" style="margin-bottom: 20px; padding: 12px 20px;">

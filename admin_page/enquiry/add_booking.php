@@ -244,6 +244,9 @@ function val($text, $key) {
 }
 
 function detect_document_type($text, $filename = '') {
+    if (trim($text) === '' && trim($filename) === '') {
+        return '';
+    }
     $combined = strtolower($text . ' ' . $filename);
     if (preg_match('/\b(visa|immigration|embassy|consulate|entry permit)\b/i', $combined)) {
         return 'visa';
@@ -324,125 +327,176 @@ if (isset($_POST["save_booking"])) {
     $created_by = mysqli_real_escape_string($db, $_SESSION['user_name'] ?? 'System');
     $ticket_path = mysqli_real_escape_string($db, $_POST["ticket_path"] ?? "");
     $document_type = mysqli_real_escape_string($db, $_POST["document_type"] ?? "ticket");
-
-    $file_type_map = [
-        'ticket'  => 'Ticket',
-        'visa'    => 'Visa',
-        'holiday' => 'Voucher',
-        'voucher' => 'Voucher',
-        'passport'=> 'Passport'
-    ];
-    $attachment_type = $file_type_map[$document_type] ?? 'Other';
+    $service_type = mysqli_real_escape_string($db, $_POST["service_type"] ?? "Flight");
+    $attachment_type = 'Ticket';
 
     $serial_no = mysqli_real_escape_string($db, $_POST["serial_no"]);
     $booking_date = mysqli_real_escape_string($db, $_POST["booking_date"]);
     $passenger_name = mysqli_real_escape_string($db, $_POST["passenger_name"]);
     $customer_name = mysqli_real_escape_string($db, $_POST["customer_name"]);
+    $customer_mobile = isset($_POST["customer_mobile"]) ? mysqli_real_escape_string($db, $_POST["customer_mobile"]) : "";
+    $customer_email = isset($_POST["customer_email"]) ? mysqli_real_escape_string($db, $_POST["customer_email"]) : "";
+    $supplier_name = mysqli_real_escape_string($db, $_POST["supplier_name"]);
+    $buying_cost = floatval($_POST["buying_cost"] ?? 0);
+    $selling_cost = floatval($_POST["selling_cost"] ?? 0);
+    $profit = floatval($_POST["profit"] ?? 0);
+    $payment_method = mysqli_real_escape_string($db, $_POST["payment_method"]);
+    $assigned_user = mysqli_real_escape_string($db, $_POST["assigned_user"] ?? '');
     $customer_type = mysqli_real_escape_string($db, $_POST["customer_type"] ?? "Walk-in Customer");
-    $customer_mobile = mysqli_real_escape_string($db, $_POST["customer_mobile"] ?? "");
-    $customer_email = mysqli_real_escape_string($db, $_POST["customer_email"] ?? "");
-    
+    $status = mysqli_real_escape_string($db, $_POST["status"] ?? "Booked");
+    $remarks = mysqli_real_escape_string($db, $_POST["remarks"] ?? "");
+
+    // Validation
+    $errors = [];
+    if (empty($passenger_name)) $errors[] = "Passenger Name is required.";
+    if (empty($customer_name)) $errors[] = "Customer Name is required.";
+    if (empty($supplier_name)) $errors[] = "Supplier Name is required.";
+
+    // Flat fields
     $from_city = mysqli_real_escape_string($db, $_POST["from_city"] ?? "");
     $to_city = mysqli_real_escape_string($db, $_POST["to_city"] ?? "");
-    $departure_date = mysqli_real_escape_string($db, $_POST["departure_date"]);
-    
+    $departure_date = mysqli_real_escape_string($db, $_POST["departure_date"] ?? "");
+    $departure_time = mysqli_real_escape_string($db, $_POST["departure_time"] ?? "");
+    $arrival_date = mysqli_real_escape_string($db, $_POST["arrival_date"] ?? "");
+    $arrival_time = mysqli_real_escape_string($db, $_POST["arrival_time"] ?? "");
     $pnr = mysqli_real_escape_string($db, $_POST["pnr"] ?? "");
     $ticket_number = mysqli_real_escape_string($db, $_POST["ticket_number"] ?? "");
     $flight_number = mysqli_real_escape_string($db, $_POST["flight_number"] ?? "");
     $airline_name = mysqli_real_escape_string($db, $_POST["airline_name"] ?? "");
-    $service_type = mysqli_real_escape_string($db, $_POST["service_type"]);
-    $supplier_name = mysqli_real_escape_string($db, $_POST["supplier_name"]);
-    
-    $buying_cost = floatval($_POST["buying_cost"] ?? 0);
-    $selling_cost = floatval($_POST["selling_cost"] ?? 0);
-    $profit = floatval($_POST["profit"] ?? 0);
-    
-    $payment_method = mysqli_real_escape_string($db, $_POST["payment_method"]);
-    $assigned_user = mysqli_real_escape_string($db, $_POST["assigned_user"] ?? $_SESSION['user_name'] ?? '');
-    $status = mysqli_real_escape_string($db, $_POST["status"] ?? "Booked");
-    $remarks = mysqli_real_escape_string($db, $_POST["remarks"] ?? "");
-    
-    $customer_master_id = isset($_POST["customer_master_id"]) ? intval($_POST["customer_master_id"]) : 0;
-    $enquiry_id = isset($_POST['enquiry_id']) ? intval($_POST['enquiry_id']) : 0;
+    $flight_class = mysqli_real_escape_string($db, $_POST["flight_class"] ?? "");
 
-    // Check existing or auto-create in customer_master if no customer_master_id is set
-    if ($customer_master_id === 0 && $customer_name !== '') {
-        $escaped_mobile = mysqli_real_escape_string($db, $customer_mobile);
-        $check_q = null;
-        if ($customer_mobile !== '') {
-            $check_q = mysqli_query($db, "SELECT id FROM customer_master WHERE mobile = '$escaped_mobile' LIMIT 1");
-        }
-        
-        if ($check_q && mysqli_num_rows($check_q) > 0) {
-            $check_row = mysqli_fetch_assoc($check_q);
-            $customer_master_id = intval($check_row['id']);
-        } else {
-            // Create a new record in customer_master
-            $type = ($customer_type && $customer_type !== '') ? $customer_type : 'Walk-in Customer';
-            $insert_cust_sql = "INSERT INTO customer_master (customer_type, name, mobile, email, created_by) 
-                                VALUES ('$type', '$customer_name', '$customer_mobile', '$customer_email', '$created_by')";
-            if (mysqli_query($db, $insert_cust_sql)) {
-                $customer_master_id = mysqli_insert_id($db);
-                
-                // Log customer creation activity
-                $log_user = $_SESSION['user_name'] ?? 'System';
-                mysqli_query($db, "INSERT INTO activity_log (username, action, module, activity_date) 
-                                   VALUES ('$log_user', 'Created Customer #$customer_master_id ($customer_name) via Booking Form', 'Customer Master', NOW())");
+    // Unused / dropped fields reset to empty or default to avoid broken query
+    $hotel_name = "";
+    $hotel_location = "";
+    $hotel_check_in = "";
+    $hotel_check_out = "";
+    $hotel_room_type = "";
+    $hotel_rooms_count = "NULL";
+    $hotel_confirmation_no = "";
+
+    $visa_type = "";
+    $visa_country = "";
+    $visa_app_no = "";
+    $visa_submission_date = "";
+    $visa_delivery_date = "";
+    $visa_valid_from = "";
+    $visa_valid_to = "";
+
+    $insurance_provider = "";
+    $insurance_policy_no = "";
+    $insurance_coverage_type = "";
+    $insurance_destination = "";
+    $insurance_start_date = "";
+    $insurance_end_date = "";
+    $insurance_sum_insured = "NULL";
+
+    $package_name = "";
+    $package_destinations = "";
+    $package_type = "";
+    $package_start_date = "";
+    $package_end_date = "";
+    $package_adults_count = "NULL";
+    $package_children_count = "NULL";
+    $package_accommodation = "";
+    $package_meals = "";
+    $package_itinerary = "";
+
+    if (!empty($errors)) {
+        $message = implode('<br>', $errors);
+        $message_type = "error";
+    } else {
+        $customer_master_id = isset($_POST["customer_master_id"]) ? intval($_POST["customer_master_id"]) : 0;
+        $enquiry_id = isset($_POST['enquiry_id']) ? intval($_POST['enquiry_id']) : 0;
+
+        // Check existing or auto-create in customer_master if no customer_master_id is set
+        if ($customer_master_id === 0 && $customer_name !== '') {
+            $escaped_mobile = mysqli_real_escape_string($db, $customer_mobile);
+            $check_q = null;
+            if ($customer_mobile !== '') {
+                $check_q = mysqli_query($db, "SELECT id FROM customer_master WHERE mobile = '$escaped_mobile' LIMIT 1");
+            }
+            
+            if ($check_q && mysqli_num_rows($check_q) > 0) {
+                $check_row = mysqli_fetch_assoc($check_q);
+                $customer_master_id = intval($check_row['id']);
+            } else {
+                // Create a new record in customer_master
+                $type = ($customer_type && $customer_type !== '') ? $customer_type : 'Walk-in Customer';
+                $insert_cust_sql = "INSERT INTO customer_master (customer_type, name, mobile, email, created_by) 
+                                    VALUES ('$type', '$customer_name', '$customer_mobile', '$customer_email', '$created_by')";
+                if (mysqli_query($db, $insert_cust_sql)) {
+                    $customer_master_id = mysqli_insert_id($db);
+                    
+                    // Log customer creation activity
+                    $log_user = $_SESSION['user_name'] ?? 'System';
+                    mysqli_query($db, "INSERT INTO activity_log (username, action, module, activity_date) 
+                                       VALUES ('$log_user', 'Created Customer #$customer_master_id ($customer_name) via Booking Form', 'Customer Master', NOW())");
+                }
             }
         }
-    }
 
-    $query = "INSERT INTO bookings (
-        serial_no, booking_date, passenger_name, customer_name, customer_type, 
-        from_city, to_city, departure_date, departure_time,
-        arrival_date, arrival_time, pnr, ticket_number,
-        flight_number, airline_name, flight_class, terminal,
-        seat_number, baggage, booking_ref, fare_basis,
-        service_type, supplier_name, buying_cost, selling_cost, 
-        profit, payment_method, assigned_user, status, remarks, ticket_path,
-        created_by, customer_master_id
-    ) VALUES (
-        '$serial_no', " . ($booking_date ? "'$booking_date'" : "NULL") . ", '$passenger_name', '$customer_name', '$customer_type',
-        '$from_city', '$to_city', " . ($departure_date ? "'$departure_date'" : "NULL") . ", '',
-        NULL, '', '$pnr', '$ticket_number',
-        '$flight_number', '$airline_name', '', '',
-        '', '', '', '',
-        '$service_type', '$supplier_name', $buying_cost, $selling_cost, 
-        $profit, '$payment_method', '$assigned_user', '$status', '$remarks', " . ($ticket_path ? "'$ticket_path'" : "NULL") . ",
-        '$created_by', " . ($customer_master_id > 0 ? $customer_master_id : "NULL") . "
-    )";
+        $query = "INSERT INTO bookings (
+            serial_no, booking_date, passenger_name, customer_name, customer_type, 
+            service_type, supplier_name, buying_cost, selling_cost, profit, 
+            payment_method, assigned_user, status, remarks, ticket_path,
+            created_by, customer_master_id,
+            from_city, to_city, departure_date, departure_time, arrival_date, arrival_time, pnr, ticket_number, flight_number, airline_name, flight_class,
+            hotel_name, hotel_location, hotel_check_in, hotel_check_out, hotel_room_type, hotel_rooms_count, hotel_confirmation_no,
+            visa_type, visa_country, visa_app_no, visa_submission_date, visa_delivery_date, visa_valid_from, visa_valid_to,
+            insurance_provider, insurance_policy_no, insurance_coverage_type, insurance_destination, insurance_start_date, insurance_end_date, insurance_sum_insured,
+            package_name, package_destinations, package_type, package_start_date, package_end_date, package_adults_count, package_children_count, package_accommodation, package_meals, package_itinerary
+        ) VALUES (
+            '$serial_no', " . ($booking_date ? "'$booking_date'" : "NULL") . ", '$passenger_name', '$customer_name', '$customer_type',
+            '$service_type', '$supplier_name', $buying_cost, $selling_cost, $profit,
+            '$payment_method', '$assigned_user', '$status', '$remarks', " . ($ticket_path ? "'$ticket_path'" : "NULL") . ",
+            '$created_by', " . ($customer_master_id > 0 ? $customer_master_id : "NULL") . ",
+            '$from_city', '$to_city', " . ($departure_date ? "'$departure_date'" : "NULL") . ", '$departure_time', " . ($arrival_date ? "'$arrival_date'" : "NULL") . ", '$arrival_time', '$pnr', '$ticket_number', '$flight_number', '$airline_name', '$flight_class',
+            '$hotel_name', '$hotel_location', " . ($hotel_check_in ? "'$hotel_check_in'" : "NULL") . ", " . ($hotel_check_out ? "'$hotel_check_out'" : "NULL") . ", '$hotel_room_type', $hotel_rooms_count, '$hotel_confirmation_no',
+            '$visa_type', '$visa_country', '$visa_app_no', " . ($visa_submission_date ? "'$visa_submission_date'" : "NULL") . ", " . ($visa_delivery_date ? "'$visa_delivery_date'" : "NULL") . ", " . ($visa_valid_from ? "'$visa_valid_from'" : "NULL") . ", " . ($visa_valid_to ? "'$visa_valid_to'" : "NULL") . ",
+            '$insurance_provider', '$insurance_policy_no', '$insurance_coverage_type', '$insurance_destination', " . ($insurance_start_date ? "'$insurance_start_date'" : "NULL") . ", " . ($insurance_end_date ? "'$insurance_end_date'" : "NULL") . ", $insurance_sum_insured,
+            '$package_name', '$package_destinations', '$package_type', " . ($package_start_date ? "'$package_start_date'" : "NULL") . ", " . ($package_end_date ? "'$package_end_date'" : "NULL") . ", $package_adults_count, $package_children_count, '$package_accommodation', '$package_meals', '$package_itinerary'
+        )";
 
-    if (mysqli_query($db, $query)) {
-        $booking_id = mysqli_insert_id($db);
+        if (mysqli_query($db, $query)) {
+            $booking_id = mysqli_insert_id($db);
 
-        // Update customer details in customer_master if they exist
-        if ($customer_master_id > 0 && ($customer_mobile !== '' || $customer_email !== '')) {
-            $update_parts = [];
-            if ($customer_mobile !== '') $update_parts[] = "mobile = '$customer_mobile'";
-            if ($customer_email !== '') $update_parts[] = "email = '$customer_email'";
-            mysqli_query($db, "UPDATE customer_master SET " . implode(", ", $update_parts) . " WHERE id = $customer_master_id");
-        }
+            // Update customer details in customer_master if they exist
+            if ($customer_master_id > 0 && ($customer_mobile !== '' || $customer_email !== '')) {
+                $update_parts = [];
+                if ($customer_mobile !== '') $update_parts[] = "mobile = '$customer_mobile'";
+                if ($customer_email !== '') $update_parts[] = "email = '$customer_email'";
+                mysqli_query($db, "UPDATE customer_master SET " . implode(", ", $update_parts) . " WHERE id = $customer_master_id");
+            }
 
-        if (!empty($ticket_path)) {
-            $att_name = "Uploaded " . $attachment_type . " (" . basename($ticket_path) . ")";
-            $db_ticket_path = mysqli_real_escape_string($db, $ticket_path);
-            mysqli_query($db, "INSERT INTO booking_attachments (booking_id, file_path, file_name, file_type) VALUES ($booking_id, '$db_ticket_path', '$att_name', '$attachment_type')");
-        }
+            if (!empty($ticket_path)) {
+                $att_name = "Uploaded " . $attachment_type . " (" . basename($ticket_path) . ")";
+                $db_ticket_path = mysqli_real_escape_string($db, $ticket_path);
+                mysqli_query($db, "INSERT INTO booking_attachments (booking_id, file_path, file_name, file_type) VALUES ($booking_id, '$db_ticket_path', '$att_name', '$attachment_type')");
+            }
 
-        $user_for_log = $_SESSION['user_name'] ?? 'System';
-        $log_query = "INSERT INTO activity_log (username, action, module, activity_date) VALUES ('$user_for_log', 'Created Booking #$booking_id (Passenger: $passenger_name) from Chat', 'Booking', NOW())";
-        mysqli_query($db, $log_query);
+            $user_for_log = $_SESSION['user_name'] ?? 'System';
+            $log_query = "INSERT INTO activity_log (username, action, module, activity_date) VALUES ('$user_for_log', 'Created Booking #$booking_id (Passenger: $passenger_name) from Chat', 'Booking', NOW())";
+            mysqli_query($db, $log_query);
 
-        if ($enquiry_id > 0) {
-            mysqli_query($db, "UPDATE enquiries SET status = 'Booked' WHERE id = $enquiry_id");
-            header("Location: chat.php?id=" . $enquiry_id . "&booking_added=1");
+            if ($enquiry_id > 0) {
+                mysqli_query($db, "UPDATE enquiries SET status = 'Booked' WHERE id = $enquiry_id");
+                if (isset($_GET['iframe'])) {
+                    echo "<script>window.parent.location.href = 'chat.php?id=" . $enquiry_id . "&booking_added=1';</script>";
+                } else {
+                    header("Location: chat.php?id=" . $enquiry_id . "&booking_added=1");
+                }
+            } else {
+                if (isset($_GET['iframe'])) {
+                    echo "<script>window.parent.location.href = '../bookings/list.php?success=1';</script>";
+                } else {
+                    header("Location: ../bookings/list.php?success=1");
+                }
+            }
+            exit;
         } else {
-            header("Location: ../bookings/list.php?success=1");
+            $message = "Database Error: " . mysqli_error($db);
+            $message_type = "error";
         }
-        exit;
-    } else {
-        $message = "Database Error: " . mysqli_error($db);
-        $message_type = "error";
     }
 }
 
@@ -457,13 +511,23 @@ if (!empty($dep_val) && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dep_val)) {
 $detected_doc_type = detect_document_type($text, $_FILES["ticket"]["name"] ?? '');
 $service_val = get_field_value('service_type', '', $text, '');
 if ($service_val === '') {
-    $service_val = ($detected_doc_type === 'visa') ? 'Visa' : (($detected_doc_type === 'holiday') ? 'Holiday Package' : (($detected_doc_type === 'voucher') ? 'Voucher' : (($detected_doc_type === 'passport') ? 'Passport' : 'Flight')));
+    if ($detected_doc_type === 'visa') {
+        $service_val = 'Visa';
+    } elseif ($detected_doc_type === 'holiday') {
+        $service_val = 'Holiday Package';
+    } elseif ($detected_doc_type === 'voucher') {
+        $service_val = 'Hotel';
+    } elseif ($detected_doc_type === 'ticket') {
+        $service_val = 'Flight';
+    } else {
+        $service_val = '';
+    }
 }
 ?>
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Add Booking from Chat | Travel CRM</title>
+    <title>Add Booking from Chat | <?= htmlspecialchars(COMPANY_NAME) ?></title>
     <link rel="stylesheet" href="../../assets/css/style.css">
     <script>if(localStorage.getItem("sidebar-locked")==="true")document.documentElement.classList.add("sidebar-pref-locked");</script>
     <script src="../../assets/js/sidebar.js" defer></script>
@@ -651,37 +715,257 @@ if ($service_val === '') {
                     }
                 });
             });
-            
+
+            const selectEl = document.getElementById('service_type');
+            if (selectEl) {
+                selectEl.addEventListener('change', handleServiceTypeChange);
+                handleServiceTypeChange();
+            }
+
+            function handleServiceTypeChange() {
+                const select = document.getElementById('service_type');
+                const container = document.getElementById('booking-fields-container');
+                const parserGrid = document.getElementById('parser-grid');
+                if (!select || !container) return;
+                
+                const val = select.value;
+
+                // Hide all service specific sections first
+                document.querySelectorAll('.service-section').forEach(sec => {
+                    sec.style.display = 'none';
+                });
+
+                if (val === '') {
+                    container.style.display = 'none';
+                    if (parserGrid) parserGrid.style.display = 'grid';
+                } else {
+                    container.style.display = 'block';
+                    if (parserGrid) parserGrid.style.display = 'none';
+                    
+                    // Show the corresponding active section
+                    let activeClass = '';
+                    if (val === 'Flight') activeClass = 'flight-fields';
+                    else if (val === 'Hotel') activeClass = 'hotel-fields';
+                    else if (val === 'Visa') activeClass = 'visa-fields';
+                    else if (val === 'Travel Insurance') activeClass = 'insurance-fields';
+                    else if (val === 'Holiday Package') activeClass = 'holiday-fields';
+
+                    if (activeClass !== '') {
+                        const activeSec = container.querySelector('.' + activeClass);
+                        if (activeSec) activeSec.style.display = 'grid';
+                    }
+                }
+            }
+
             function escapeHtml(text) {
                 if (!text) return '';
                 return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
             }
         });
     </script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
+        body {
+            height: 100vh;
+            overflow: hidden;
+            margin: 0;
+            background: #f8fafc;
+            font-family: 'Outfit', sans-serif;
+        }
+        .main {
+            height: calc(100vh - 20px);
+            margin-top: 10px;
+            margin-bottom: 10px;
+            margin-right: 20px;
+            padding: 16px 24px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-sizing: border-box;
+            background: #f8fafc;
+            border: none;
+            box-shadow: none;
+        }
+        .dashboard-title-row {
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .dashboard-title-row h1 {
+            font-size: 20px;
+            font-weight: 700;
+            color: #0f172a;
+            margin: 0;
+        }
+        .booking-scroll-area {
+            flex: 1;
+            overflow-y: auto;
+            padding-right: 12px;
+            margin-bottom: 8px;
+            min-height: 0;
+        }
+        .booking-scroll-area::-webkit-scrollbar {
+            width: 6px;
+        }
+        .booking-scroll-area::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.02);
+            border-radius: 3px;
+        }
+        .booking-scroll-area::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        .booking-scroll-area::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(226, 232, 240, 0.8) !important;
+            border-radius: 20px !important;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+            padding: 24px !important;
+            box-sizing: border-box;
+        }
         .booking-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
             gap: 15px;
         }
-        .span-2 {
-            grid-column: span 2;
+
+        /* Booking Form Card and Row-based Grid Layout */
+        .booking-form-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(226, 232, 240, 0.8) !important;
+            border-radius: 20px !important;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05) !important;
+            padding: 24px !important;
+            box-sizing: border-box;
+            max-width: 1000px;
+            margin: 0 auto;
         }
-        .span-4 {
+        .booking-form-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+        }
+        .booking-form-grid h3 {
             grid-column: span 4;
+            margin: 16px 0 8px 0;
+            font-size: 13px;
+            color: #0d283f;
+            text-transform: uppercase;
+            font-weight: 700;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            letter-spacing: 0.5px;
         }
+        .booking-form-grid h3:first-of-type {
+            margin-top: 0;
+        }
+        .booking-form-grid h3 .icon {
+            font-size: 16px;
+        }
+        
+        /* Service Specific Grid Section */
+        .booking-form-grid .service-section {
+            grid-column: span 4;
+            display: none;
+            grid-template-columns: repeat(4, 1fr) !important;
+            gap: 16px !important;
+            margin-top: 0 !important;
+            padding-top: 0 !important;
+        }
+        .service-section h4 {
+            grid-column: span 4 !important;
+            margin: 12px 0 4px 0 !important;
+            color: var(--accent-color) !important;
+            text-transform: uppercase !important;
+            font-weight: 700 !important;
+            border-bottom: 1px solid var(--border-dark) !important;
+            padding-bottom: 4px !important;
+            font-size: 12px !important;
+        }
+        .span-1 { grid-column: span 1 !important; }
+        .span-2 { grid-column: span 2 !important; }
+        .span-3 { grid-column: span 3 !important; }
+        .span-4 { grid-column: span 4 !important; }
         .ticket-drop-zone {
-            border: 2px dashed var(--border-dark);
+            border: 2px dashed #cbd5e1;
             border-radius: 12px;
             padding: 24px 16px;
             text-align: center;
             cursor: pointer;
             background: #f8fafc;
-            transition: border-color 0.2s, background 0.2s;
+            transition: all 0.2s;
         }
         .ticket-drop-zone:hover {
-            border-color: var(--accent-color);
-            background: rgba(59, 130, 246, 0.05);
+            border-color: #0d283f;
+            background: rgba(13, 40, 63, 0.04);
+        }
+        .form-group label {
+            font-size: 11px;
+            font-weight: 600;
+            color: #475569;
+            margin-bottom: 6px;
+            display: block;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            font-size: 13px;
+            background: #ffffff;
+            color: #1e293b;
+            outline: none;
+            transition: all 0.2s ease;
+            box-sizing: border-box;
+        }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+            border-color: #0d283f;
+            box-shadow: 0 0 0 3px rgba(13, 40, 63, 0.15);
+            background: #ffffff;
+        }
+        .btn {
+            background: linear-gradient(135deg, #0d283f 0%, #1a4970 100%);
+            border: none;
+            border-radius: 10px;
+            padding: 8px 16px;
+            color: white;
+            font-weight: 600;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 6px -1px rgba(13, 40, 63, 0.2);
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 15px -3px rgba(13, 40, 63, 0.3);
+        }
+        .btn-secondary {
+            background: #ffffff;
+            color: #1e293b;
+            border: 1px solid #cbd5e1;
+            box-shadow: none;
+        }
+        .btn-secondary:hover {
+            background: #f8fafc;
+            border-color: #94a3b8;
+            box-shadow: none;
         }
         @media (max-width: 900px) {
             .booking-grid {
@@ -745,6 +1029,15 @@ if ($service_val === '') {
             font-size: 11px;
             color: #64748b;
         }
+        .badge {
+            border-radius: 20px;
+            padding: 4px 12px;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 700;
+            display: inline-block;
+        }
         .badge-walk-in {
             background: #e0f2fe;
             color: #0369a1;
@@ -761,32 +1054,41 @@ if ($service_val === '') {
             background: #dcfce7;
             color: #166534;
         }
+        hr {
+            margin: 0 0 12px 0;
+            border: 0;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        /* Iframe overrides */
+        <?php if (isset($_GET['iframe'])): ?>
+        .sidebar {
+            display: none !important;
+        }
+        .main {
+            margin: 0 !important;
+            padding: 10px 16px !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            box-sizing: border-box !important;
+        }
+        .dashboard-title-row {
+            margin-bottom: 6px !important;
+        }
+        .dashboard-title-row h1 {
+            font-size: 16px !important;
+        }
+        .dashboard-title-row p {
+            display: none !important;
+        }
+        <?php endif; ?>
     </style>
 </head>
 <body>
 
-<div class="sidebar">
-    <h2 class="logo">✈ Travel CRM</h2>
-    <a href="../dashboard.php">Dashboard</a>
-    <a href="../master/list.php">Master</a>
-    <a href="../bookings/list.php">Bookings</a>
-    <a href="../bookings/add.php">Add Booking</a>
-    <a href="../bookings/reports.php">Reports</a>
-    <a href="list.php" class="active">Enquiry</a>
-    <a href="../tasks/index.php">Tasks</a>
-    <a href="../admin/activity.php">Activity</a>
-    <a href="../../login.php" class="logout">Logout</a>
-</div>
+<?php include(__DIR__ . "/../../includes/sidebar.php"); ?>
 
 <div class="main">
-    <div class="header">
-        <div style="flex: 1;"></div>
-        <span class="notify">🔔</span>
-        <a href="../profile/index.php" class="profile-widget">
-            <span>👤 Profile</span>
-        </a>
-    </div>
-
     <div class="dashboard-title-row">
         <div>
             <h1 style="margin: 0;">✈ Add Booking (from Chat)</h1>
@@ -812,8 +1114,10 @@ if ($service_val === '') {
         </div>
     <?php endif; ?>
 
+    <div class="booking-scroll-area">
+
     <!-- Ticket Parsers Grid -->
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 1000px; margin: 0 auto 24px auto;">
+    <div id="parser-grid" style="display: <?php echo (!empty($text) || !empty($service_val)) ? 'none' : 'grid'; ?>; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 1000px; margin: 0 auto 20px auto;">
         
         <!-- Box 1: OCR Ticket Upload -->
         <div class="card" style="padding: 20px; display: flex; flex-direction: column; justify-content: space-between; border: 1px solid var(--border-dark); border-radius: 12px;">
@@ -842,146 +1146,347 @@ if ($service_val === '') {
     </div>
 
     <!-- Main Form Card -->
-    <div class="card" style="max-width: 1000px; margin: 0 auto;">
-        <form method="POST">
+    <!-- Main Form Card Container (transparent to let columns sit nicely) -->
+    <div class="booking-form-card">
+        <form method="POST" enctype="multipart/form-data">
             <input type="hidden" name="enquiry_id" value="<?php echo htmlspecialchars($enquiry_id); ?>">
             <input type="hidden" name="ticket_path" value="<?php echo htmlspecialchars($ticket_path); ?>">
             <input type="hidden" name="document_type" value="<?php echo htmlspecialchars($document_type); ?>">
             <input type="hidden" name="customer_master_id" value="">
 
-            <div class="booking-grid">
-                <div class="form-group field-group-always">
-                    <label for="serial_no">Serial No</label>
-                    <input type="text" id="serial_no" name="serial_no" placeholder="e.g. 5022" value="<?php echo htmlspecialchars(get_field_value('serial_no', '', $text, $default_serial)); ?>" required>
-                </div>
-                <div class="form-group field-group-always">
-                    <label for="booking_date">Booking Date</label>
-                    <input type="date" id="booking_date" name="booking_date" value="<?php echo htmlspecialchars(get_field_value('booking_date', '', $text, date('Y-m-d'))); ?>" required>
-                </div>
-                <div class="form-group field-group-always">
-                    <label for="customer_name">Customer Name</label>
-                    <input type="text" id="customer_name" name="customer_name" placeholder="Customer Name" value="<?php echo htmlspecialchars(get_field_value('customer_name', '', $text, $_GET['customer_name'] ?? '')); ?>" required>
-                </div>
-                <div class="form-group field-group-always">
-                    <label for="customer_type">Customer Type</label>
-                    <select id="customer_type" name="customer_type" required>
-                        <?php $cust_type_val = get_field_value('customer_type', '', $text, $_GET['customer_type'] ?? 'Walk-in Customer'); ?>
-                        <option value="">Select Customer Type</option>
-                        <option value="Walk-in Customer" <?php echo $cust_type_val === 'Walk-in Customer' ? 'selected' : ''; ?>>Walk-in Customer</option>
-                        <option value="B2B" <?php echo $cust_type_val === 'B2B' ? 'selected' : ''; ?>>B2B</option>
-                        <option value="Corporate" <?php echo $cust_type_val === 'Corporate' ? 'selected' : ''; ?>>Corporate</option>
-                        <option value="User" <?php echo $cust_type_val === 'User' ? 'selected' : ''; ?>>User</option>
-                        <option value="Other" <?php echo $cust_type_val === 'Other' ? 'selected' : ''; ?>>Other</option>
+            <div class="booking-grid" style="grid-template-columns: 1fr; margin-bottom: 12px;">
+                <!-- SERVICE TYPE SELECT (ALWAYS VISIBLE) -->
+                <div class="form-group" style="border-left: 3px solid var(--accent-color); padding-left: 8px;">
+                    <label for="service_type" style="font-weight: 700; color: var(--accent-color); font-size: 14px; margin-bottom: 6px;">Select Service Type</label>
+                    <select id="service_type" name="service_type" required style="font-size: 14px; padding: 8px 12px;">
+                        <option value="">-- Choose Service Type --</option>
+                        <option value="Flight" <?php echo ($service_val === 'Flight') ? 'selected' : ''; ?>>Flight</option>
+                        <option value="Hotel" <?php echo ($service_val === 'Hotel' || $service_val === 'Voucher') ? 'selected' : ''; ?>>Hotel</option>
+                        <option value="Visa" <?php echo ($service_val === 'Visa' || $service_val === 'Passport') ? 'selected' : ''; ?>>Visa</option>
+                        <option value="Travel Insurance" <?php echo ($service_val === 'Travel Insurance' || $service_val === 'Insurance') ? 'selected' : ''; ?>>Travel Insurance</option>
+                        <option value="Holiday Package" <?php echo ($service_val === 'Holiday Package') ? 'selected' : ''; ?>>Holiday Package</option>
                     </select>
                 </div>
+            </div>
 
-                <div class="form-group field-group-always">
-                    <label for="customer_mobile">Phone / Mobile</label>
-                    <input type="text" id="customer_mobile" name="customer_mobile" placeholder="Phone Number" value="<?php echo htmlspecialchars(get_field_value('customer_mobile', '', $text, $_GET['mobile'] ?? '')); ?>">
-                </div>
-                <div class="form-group field-group-always">
-                    <label for="customer_email">Email Address</label>
-                    <input type="email" id="customer_email" name="customer_email" placeholder="Email" value="<?php echo htmlspecialchars(get_field_value('customer_email', '', $text, $_GET['email'] ?? '')); ?>">
-                </div>
-                <div class="form-group field-group-always">
-                    <label for="service_type">Service Type</label>
-                    <select id="service_type" name="service_type" required>
-                        <option value="Flight" <?php echo $service_val === 'Flight' ? 'selected' : ''; ?>>Flight Ticket</option>
-                        <option value="Visa" <?php echo $service_val === 'Visa' ? 'selected' : ''; ?>>Visa</option>
-                        <option value="Holiday Package" <?php echo $service_val === 'Holiday Package' ? 'selected' : ''; ?>>Holiday Package</option>
-                        <option value="Voucher" <?php echo $service_val === 'Voucher' ? 'selected' : ''; ?>>Hotel Voucher / Booking</option>
-                        <option value="Passport" <?php echo $service_val === 'Passport' ? 'selected' : ''; ?>>Passport</option>
-                        <option value="Bus" <?php echo $service_val === 'Bus' ? 'selected' : ''; ?>>Bus Ticket</option>
-                        <option value="Cab" <?php echo $service_val === 'Cab' ? 'selected' : ''; ?>>Cab Booking</option>
-                        <option value="Insurance" <?php echo $service_val === 'Insurance' ? 'selected' : ''; ?>>Travel Insurance</option>
-                    </select>
-                </div>
-                <div class="form-group field-group-always">
-                    <label for="passenger_name">Passenger Name</label>
-                    <input type="text" id="passenger_name" name="passenger_name" placeholder="Passenger Name" value="<?php echo htmlspecialchars(get_field_value('passenger_name', 'Passenger', $text)); ?>" required>
-                </div>
+            <!-- CONTAINER FOR THE REST OF THE FIELDS (HIDDEN BY DEFAULT) -->
+            <div id="booking-fields-container" style="display: none;">
+                <div class="booking-form-grid">
+                    
+                    <!-- SECTION 1: CUSTOMER DETAILS -->
+                    <h3><span class="icon">👤</span> Customer & Booking Details</h3>
+                    <div class="form-group span-1">
+                        <label for="serial_no">Serial No</label>
+                        <input type="text" id="serial_no" name="serial_no" placeholder="e.g. 5022" value="<?php echo htmlspecialchars(get_field_value('serial_no', '', $text, $default_serial)); ?>" required>
+                    </div>
+                    <div class="form-group span-1">
+                        <label for="booking_date">Booking Date</label>
+                        <input type="date" id="booking_date" name="booking_date" value="<?php echo htmlspecialchars(get_field_value('booking_date', '', $text, date('Y-m-d'))); ?>" required>
+                    </div>
+                    <div class="form-group span-1">
+                        <label for="customer_type">Customer Type</label>
+                        <select id="customer_type" name="customer_type" required>
+                            <?php $cust_type_val = get_field_value('customer_type', '', $text, $_GET['customer_type'] ?? 'Walk-in Customer'); ?>
+                            <option value="">Select Customer Type</option>
+                            <option value="Walk-in Customer" <?php echo $cust_type_val === 'Walk-in Customer' ? 'selected' : ''; ?>>Walk-in Customer</option>
+                            <option value="B2B" <?php echo $cust_type_val === 'B2B' ? 'selected' : ''; ?>>B2B</option>
+                            <option value="Corporate" <?php echo $cust_type_val === 'Corporate' ? 'selected' : ''; ?>>Corporate</option>
+                            <option value="User" <?php echo $cust_type_val === 'User' ? 'selected' : ''; ?>>User</option>
+                            <option value="Other" <?php echo $cust_type_val === 'Other' ? 'selected' : ''; ?>>Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group span-1">
+                        <label for="customer_name">Customer / Agency Name</label>
+                        <input type="text" id="customer_name" name="customer_name" placeholder="Customer Name" value="<?php echo htmlspecialchars(get_field_value('customer_name', '', $text, $_GET['customer_name'] ?? '')); ?>" required>
+                    </div>
+                    <div class="form-group span-2">
+                        <label for="passenger_name">Passenger Name</label>
+                        <input type="text" id="passenger_name" name="passenger_name" placeholder="Passenger Name" value="<?php echo htmlspecialchars(get_field_value('passenger_name', 'Passenger', $text)); ?>" required>
+                    </div>
+                    <div class="form-group span-1">
+                        <label for="customer_mobile">Customer Phone / Mobile</label>
+                        <input type="text" id="customer_mobile" name="customer_mobile" placeholder="Phone Number" value="<?php echo htmlspecialchars(get_field_value('customer_mobile', '', $text, $_GET['mobile'] ?? '')); ?>">
+                    </div>
+                    <div class="form-group span-1">
+                        <label for="customer_email">Customer Email</label>
+                        <input type="email" id="customer_email" name="customer_email" placeholder="Email" value="<?php echo htmlspecialchars(get_field_value('customer_email', '', $text, $_GET['email'] ?? '')); ?>">
+                    </div>
+                    <div class="form-group span-2">
+                        <label for="supplier_name">Supplier Name</label>
+                        <input type="text" id="supplier_name" name="supplier_name" placeholder="Supplier Name" value="<?php echo htmlspecialchars(get_field_value('supplier_name', '', $text)); ?>" required>
+                    </div>
 
-                <div class="form-group field-group-always">
-                    <label for="from_city">From (Origin)</label>
-                    <input type="text" id="from_city" name="from_city" placeholder="Origin City" value="<?php echo htmlspecialchars(get_field_value('from_city', 'From', $text)); ?>">
-                </div>
-                <div class="form-group field-group-always">
-                    <label for="to_city">To (Destination)</label>
-                    <input type="text" id="to_city" name="to_city" placeholder="Destination City" value="<?php echo htmlspecialchars(get_field_value('to_city', 'To', $text)); ?>">
-                </div>
-                <div class="form-group field-group-always">
-                    <label for="departure_date">Departure Date</label>
-                    <input type="date" id="departure_date" name="departure_date" value="<?php echo htmlspecialchars($dep_val); ?>">
-                </div>
-                <div class="form-group field-group-always">
-                    <label for="pnr">PNR Code</label>
-                    <input type="text" id="pnr" name="pnr" placeholder="PNR / Reference" value="<?php echo htmlspecialchars(get_field_value('pnr', 'PNR', $text)); ?>">
-                </div>
+                    <!-- SERVICE SPECIFIC SECTIONS -->
+                    <!-- Flight Section -->
+                    <div class="service-section flight-fields" style="display: none;">
+                        <h4>Flight Information</h4>
+                        <div class="form-group span-1">
+                            <label for="from_city">From (Origin)</label>
+                            <input type="text" id="from_city" name="from_city" placeholder="Origin City" value="<?php echo htmlspecialchars(get_field_value('from_city', 'From', $text)); ?>">
+                        </div>
+                        <div class="form-group span-1">
+                            <label for="to_city">To (Destination)</label>
+                            <input type="text" id="to_city" name="to_city" placeholder="Destination City" value="<?php echo htmlspecialchars(get_field_value('to_city', 'To', $text)); ?>">
+                        </div>
+                        <div class="form-group span-1">
+                            <label for="departure_date">Departure Date</label>
+                            <input type="date" id="departure_date" name="departure_date" value="<?php echo htmlspecialchars($dep_val); ?>">
+                        </div>
+                        <div class="form-group span-1">
+                            <label for="departure_time">Departure Time</label>
+                            <input type="text" id="departure_time" name="departure_time" placeholder="HH:MM" value="<?php echo htmlspecialchars(get_field_value('departure_time', 'Departure Time', $text)); ?>">
+                        </div>
+                        <div class="form-group span-1">
+                            <label for="arrival_date">Arrival Date</label>
+                            <input type="date" id="arrival_date" name="arrival_date" value="<?php echo htmlspecialchars(get_field_value('arrival_date', 'Arrival Date', $text)); ?>">
+                        </div>
+                        <div class="form-group span-1">
+                            <label for="arrival_time">Arrival Time</label>
+                            <input type="text" id="arrival_time" name="arrival_time" placeholder="HH:MM" value="<?php echo htmlspecialchars(get_field_value('arrival_time', 'Arrival Time', $text)); ?>">
+                        </div>
+                        <div class="form-group span-1">
+                            <label for="airline_name">Airline Name</label>
+                            <input type="text" id="airline_name" name="airline_name" placeholder="Airline" value="<?php echo htmlspecialchars(get_field_value('airline_name', 'Airline', $text)); ?>">
+                        </div>
+                        <div class="form-group span-1">
+                            <label for="flight_number">Flight Number</label>
+                            <input type="text" id="flight_number" name="flight_number" placeholder="Flight No" value="<?php echo htmlspecialchars(get_field_value('flight_number', 'Flight Number', $text)); ?>">
+                        </div>
+                        <div class="form-group span-1">
+                            <label for="pnr">PNR Code</label>
+                            <input type="text" id="pnr" name="pnr" placeholder="PNR" value="<?php echo htmlspecialchars(get_field_value('pnr', 'PNR', $text)); ?>">
+                        </div>
+                        <div class="form-group span-1">
+                            <label for="ticket_number">Ticket Number</label>
+                            <input type="text" id="ticket_number" name="ticket_number" placeholder="Ticket No" value="<?php echo htmlspecialchars(get_field_value('ticket_number', 'Ticket', $text)); ?>">
+                        </div>
+                        <div class="form-group span-2">
+                            <label for="flight_class">Class</label>
+                            <select id="flight_class" name="flight_class">
+                                <option value="Economy">Economy</option>
+                                <option value="Premium Economy">Premium Economy</option>
+                                <option value="Business">Business</option>
+                                <option value="First">First Class</option>
+                            </select>
+                        </div>
+                    </div>
 
-                <div class="form-group field-group-always">
-                    <label for="ticket_number">Ticket Number</label>
-                    <input type="text" id="ticket_number" name="ticket_number" placeholder="Ticket Number" value="<?php echo htmlspecialchars(get_field_value('ticket_number', 'Ticket', $text)); ?>">
-                </div>
-                <div class="form-group field-group-always">
-                    <label for="flight_number">Flight/Vehicle Number</label>
-                    <input type="text" id="flight_number" name="flight_number" placeholder="Flight No" value="<?php echo htmlspecialchars(get_field_value('flight_number', 'Flight Number', $text)); ?>">
-                </div>
-                <div class="form-group field-group-always">
-                    <label for="airline_name">Airline / Carrier</label>
-                    <input type="text" id="airline_name" name="airline_name" placeholder="Airline Name" value="<?php echo htmlspecialchars(get_field_value('airline_name', 'Airline', $text)); ?>">
-                </div>
-                <div class="form-group field-group-always">
-                    <label for="supplier_name">Supplier Name</label>
-                    <input type="text" id="supplier_name" name="supplier_name" placeholder="Supplier Name" value="<?php echo htmlspecialchars(get_field_value('supplier_name', '', $text)); ?>" required>
-                </div>
+                    <!-- Hotel Section -->
+                    <div class="service-section hotel-fields" style="display: none;">
+                        <h4>Hotel Information</h4>
+                        <div class="form-group span-2">
+                            <label for="hotel_name">Hotel Name</label>
+                            <input type="text" id="hotel_name" name="hotel_name" placeholder="Hotel Name">
+                        </div>
+                        <div class="form-group span-2">
+                            <label for="hotel_location">Location / City</label>
+                            <input type="text" id="hotel_location" name="hotel_location" placeholder="City" value="<?php echo htmlspecialchars(get_field_value('to_city', 'To', $text)); ?>">
+                        </div>
+                        <div class="form-group span-1">
+                            <label for="hotel_check_in">Check-in Date</label>
+                            <input type="date" id="hotel_check_in" name="hotel_check_in" value="<?php echo htmlspecialchars($dep_val); ?>">
+                        </div>
+                        <div class="form-group span-1">
+                            <label for="hotel_check_out">Check-out Date</label>
+                            <input type="date" id="hotel_check_out" name="hotel_check_out">
+                        </div>
+                        <div class="form-group span-1">
+                            <label for="hotel_room_type">Room Type</label>
+                            <input type="text" id="hotel_room_type" name="hotel_room_type" placeholder="e.g. Deluxe Suite">
+                        </div>
+                        <div class="form-group span-1">
+                            <label for="hotel_rooms_count">Number of Rooms</label>
+                            <input type="number" id="hotel_rooms_count" name="hotel_rooms_count" placeholder="1">
+                        </div>
+                        <div class="form-group span-2">
+                            <label for="hotel_confirmation_no">Confirmation Number</label>
+                            <input type="text" id="hotel_confirmation_no" name="hotel_confirmation_no" placeholder="Confirmation No" value="<?php echo htmlspecialchars(get_field_value('pnr', 'PNR', $text)); ?>">
+                        </div>
+                    </div>
 
-                <div class="form-group field-group-always">
-                    <label for="buying_cost">Buying Cost (₹)</label>
-                    <input type="number" step="0.01" id="buying_cost" name="buying_cost" placeholder="0.00" oninput="calculateProfit()" value="<?php echo htmlspecialchars(get_field_value('buying_cost', '', $text)); ?>" required>
-                </div>
-                <div class="form-group field-group-always">
-                    <label for="selling_cost">Selling Cost (₹)</label>
-                    <input type="number" step="0.01" id="selling_cost" name="selling_cost" placeholder="0.00" oninput="calculateProfit()" value="<?php echo htmlspecialchars(get_field_value('selling_cost', '', $text)); ?>" required>
-                </div>
-                <div class="form-group field-group-always">
-                    <label for="profit">Profit Margin (₹)</label>
-                    <input type="number" step="0.01" id="profit" name="profit" placeholder="0.00" readonly style="background: #f8fafc; font-weight: 700; color: var(--status-booked-text);" value="<?php echo htmlspecialchars(get_field_value('profit', '', $text)); ?>">
-                </div>
-                <div class="form-group field-group-always">
-                    <label for="payment_method">Payment Mode</label>
-                    <select id="payment_method" name="payment_method" required>
-                        <?php $pm_val = get_field_value('payment_method', '', $text, 'Cash'); ?>
-                        <option value="Cash" <?php echo $pm_val === 'Cash' ? 'selected' : ''; ?>>Cash</option>
-                        <option value="Credit" <?php echo $pm_val === 'Credit' ? 'selected' : ''; ?>>Credit</option>
-                        <option value="UPI" <?php echo $pm_val === 'UPI' ? 'selected' : ''; ?>>UPI</option>
-                        <option value="Bank Transfer" <?php echo $pm_val === 'Bank Transfer' ? 'selected' : ''; ?>>Bank Transfer</option>
-                    </select>
-                </div>
+                    <!-- Visa Section -->
+                    <div class="service-section visa-fields" style="display: none;">
+                        <h4>Visa Information</h4>
+                        <div class="form-group span-1">
+                            <label for="visa_type">Visa Type</label>
+                            <select id="visa_type" name="visa_type">
+                                <option value="Tourist">Tourist</option>
+                                <option value="Business">Business</option>
+                                <option value="Student">Student</option>
+                                <option value="Work">Work</option>
+                            </select>
+                        </div>
+                        <div class="form-group span-1">
+                            <label for="visa_country">Destination Country</label>
+                            <input type="text" id="visa_country" name="visa_country" placeholder="Country" value="<?php echo htmlspecialchars(get_field_value('to_city', 'To', $text)); ?>">
+                        </div>
+                        <div class="form-group span-2">
+                            <label for="visa_app_no">Application Number</label>
+                            <input type="text" id="visa_app_no" name="visa_app_no" placeholder="Application No">
+                        </div>
+                        <div class="form-group span-1">
+                            <label for="visa_submission_date">Submission Date</label>
+                            <input type="date" id="visa_submission_date" name="visa_submission_date" value="<?php echo date('Y-m-d'); ?>">
+                        </div>
+                        <div class="form-group span-1">
+                            <label for="visa_delivery_date">Expected Delivery Date</label>
+                            <input type="date" id="visa_delivery_date" name="visa_delivery_date">
+                        </div>
+                        <div class="form-group span-1">
+                            <label for="visa_valid_from">Validity From</label>
+                            <input type="date" id="visa_valid_from" name="visa_valid_from">
+                        </div>
+                        <div class="form-group span-1">
+                            <label for="visa_valid_to">Validity To</label>
+                            <input type="date" id="visa_valid_to" name="visa_valid_to">
+                        </div>
+                    </div>
 
-                <div class="form-group field-group-always">
-                    <label for="status">Booking Status</label>
-                    <select id="status" name="status" required>
-                        <?php $status_val = get_field_value('status', '', $text, 'Booked'); ?>
-                        <option value="Booked" <?php echo $status_val === 'Booked' ? 'selected' : ''; ?>>Booked</option>
-                        <option value="Issued" <?php echo $status_val === 'Issued' ? 'selected' : ''; ?>>Issued</option>
-                        <option value="On Hold" <?php echo $status_val === 'On Hold' ? 'selected' : ''; ?>>On Hold</option>
-                        <option value="Cancelled" <?php echo $status_val === 'Cancelled' ? 'selected' : ''; ?>>Cancelled</option>
-                    </select>
-                </div>
-                <div class="form-group field-group-always">
-                    <label for="assigned_user">Assigned Agent</label>
-                    <input type="text" id="assigned_user" name="assigned_user" value="<?php echo htmlspecialchars(get_field_value('assigned_user', '', $text, $_SESSION['user_name'] ?? '')); ?>">
-                </div>
-                <div class="form-group field-group-always span-2">
-                    <label for="remarks">Remarks</label>
-                    <textarea id="remarks" name="remarks" rows="2" placeholder="Booking Remarks" style="min-height: 38px;"><?php echo htmlspecialchars(get_field_value('remarks', '', $text)); ?></textarea>
-                </div>
+                    <!-- Travel Insurance Section -->
+                    <div class="service-section insurance-fields" style="display: none;">
+                        <h4>Travel Insurance Information</h4>
+                        <div class="form-group span-2">
+                            <label for="insurance_provider">Insurance Provider</label>
+                            <input type="text" id="insurance_provider" name="insurance_provider" placeholder="Provider Name">
+                        </div>
+                        <div class="form-group span-2">
+                            <label for="insurance_policy_no">Policy Number</label>
+                            <input type="text" id="insurance_policy_no" name="insurance_policy_no" placeholder="Policy No">
+                        </div>
+                        <div class="form-group span-1">
+                            <label for="insurance_coverage_type">Coverage Type</label>
+                            <select id="insurance_coverage_type" name="insurance_coverage_type">
+                                <option value="Individual">Individual</option>
+                                <option value="Family">Family</option>
+                                <option value="Group">Group</option>
+                            </select>
+                        </div>
+                        <div class="form-group span-1">
+                            <label for="insurance_destination">Destination Country/Region</label>
+                            <input type="text" id="insurance_destination" name="insurance_destination" placeholder="Destination(s)" value="<?php echo htmlspecialchars(get_field_value('to_city', 'To', $text)); ?>">
+                        </div>
+                        <div class="form-group span-1">
+                            <label for="insurance_start_date">Coverage Start Date</label>
+                            <input type="date" id="insurance_start_date" name="insurance_start_date" value="<?php echo htmlspecialchars($dep_val); ?>">
+                        </div>
+                        <div class="form-group span-1">
+                            <label for="insurance_end_date">Coverage End Date</label>
+                            <input type="date" id="insurance_end_date" name="insurance_end_date">
+                        </div>
+                        <div class="form-group span-2">
+                            <label for="insurance_sum_insured">Sum Insured / Coverage Amount (₹)</label>
+                            <input type="number" step="0.01" id="insurance_sum_insured" name="insurance_sum_insured" placeholder="0.00">
+                        </div>
+                    </div>
 
-                <button type="submit" name="save_booking" class="span-4" style="margin-top: 15px; background: #10b981; color: white; border: none; padding: 12px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px; transition: background 0.15s;">
-                    Confirm & Save Booking
-                </button>
+                    <!-- Holiday Package Section -->
+                    <div class="service-section holiday-fields" style="display: none;">
+                        <h4>Holiday Package Information</h4>
+                        <div class="form-group span-2">
+                            <label for="package_name">Package Name</label>
+                            <input type="text" id="package_name" name="package_name" placeholder="Package Name">
+                        </div>
+                        <div class="form-group span-2">
+                            <label for="package_destinations">Destination(s)</label>
+                            <input type="text" id="package_destinations" name="package_destinations" placeholder="e.g. Kerala, Goa" value="<?php echo htmlspecialchars(get_field_value('to_city', 'To', $text)); ?>">
+                        </div>
+                        <div class="form-group span-1">
+                            <label for="package_type">Package Type</label>
+                            <select id="package_type" name="package_type">
+                                <option value="Domestic">Domestic</option>
+                                <option value="International">International</option>
+                            </select>
+                        </div>
+                        <div class="form-group span-1">
+                            <label for="package_start_date">Start Date</label>
+                            <input type="date" id="package_start_date" name="package_start_date" value="<?php echo htmlspecialchars($dep_val); ?>">
+                        </div>
+                        <div class="form-group span-1">
+                            <label for="package_end_date">End Date</label>
+                            <input type="date" id="package_end_date" name="package_end_date">
+                        </div>
+                        <div class="form-group span-1">
+                            <label for="package_adults_count">Adults</label>
+                            <input type="number" id="package_adults_count" name="package_adults_count" placeholder="2">
+                        </div>
+                        <div class="form-group span-1">
+                            <label for="package_children_count">Children</label>
+                            <input type="number" id="package_children_count" name="package_children_count" placeholder="0">
+                        </div>
+                        <div class="form-group span-1">
+                            <label for="package_accommodation">Accommodation</label>
+                            <select id="package_accommodation" name="package_accommodation">
+                                <option value="Yes">Yes</option>
+                                <option value="No">No</option>
+                            </select>
+                        </div>
+                        <div class="form-group span-2">
+                            <label for="package_meals">Meals Included</label>
+                            <select id="package_meals" name="package_meals">
+                                <option value="No Meals">No Meals</option>
+                                <option value="Breakfast Only">Breakfast Only</option>
+                                <option value="Half Board">Half Board</option>
+                                <option value="Full Board">Full Board</option>
+                                <option value="All Inclusive">All Inclusive</option>
+                            </select>
+                        </div>
+                        <div class="form-group span-4">
+                            <label for="package_itinerary">Itinerary Notes</label>
+                            <textarea id="package_itinerary" name="package_itinerary" rows="2" placeholder="Itinerary notes..." style="min-height: 34px;"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- SECTION 3: FINANCIALS & REMARKS -->
+                    <h3><span class="icon">💰</span> Pricing & Status</h3>
+                    <div class="form-group span-1">
+                        <label for="buying_cost">Buying Cost (₹)</label>
+                        <input type="number" step="0.01" id="buying_cost" name="buying_cost" placeholder="0.00" oninput="calculateProfit()" value="<?php echo htmlspecialchars(get_field_value('buying_cost', '', $text)); ?>" required>
+                    </div>
+                    <div class="form-group span-1">
+                        <label for="selling_cost">Selling Cost (₹)</label>
+                        <input type="number" step="0.01" id="selling_cost" name="selling_cost" placeholder="0.00" oninput="calculateProfit()" value="<?php echo htmlspecialchars(get_field_value('selling_cost', '', $text)); ?>" required>
+                    </div>
+                    <div class="form-group span-1">
+                        <label for="profit">Profit Margin (₹)</label>
+                        <input type="number" step="0.01" id="profit" name="profit" placeholder="0.00" readonly style="background: #f8fafc; font-weight: 700; color: var(--status-booked-text);" value="<?php echo htmlspecialchars(get_field_value('profit', '', $text)); ?>">
+                    </div>
+                    <div class="form-group span-1">
+                        <label for="payment_method">Payment Mode</label>
+                        <select id="payment_method" name="payment_method" required>
+                            <?php $pm_val = get_field_value('payment_method', '', $text, 'Cash'); ?>
+                            <option value="Cash" <?php echo $pm_val === 'Cash' ? 'selected' : ''; ?>>Cash</option>
+                            <option value="Credit" <?php echo $pm_val === 'Credit' ? 'selected' : ''; ?>>Credit</option>
+                            <option value="UPI" <?php echo $pm_val === 'UPI' ? 'selected' : ''; ?>>UPI</option>
+                            <option value="Bank Transfer" <?php echo $pm_val === 'Bank Transfer' ? 'selected' : ''; ?>>Bank Transfer</option>
+                        </select>
+                    </div>
+                    <div class="form-group span-1">
+                        <label for="status">Booking Status</label>
+                        <select id="status" name="status" required>
+                            <?php $status_val = get_field_value('status', '', $text, 'Booked'); ?>
+                            <option value="Booked" <?php echo $status_val === 'Booked' ? 'selected' : ''; ?>>Booked</option>
+                            <option value="Issued" <?php echo $status_val === 'Issued' ? 'selected' : ''; ?>>Issued</option>
+                            <option value="On Hold" <?php echo $status_val === 'On Hold' ? 'selected' : ''; ?>>On Hold</option>
+                            <option value="Cancelled" <?php echo $status_val === 'Cancelled' ? 'selected' : ''; ?>>Cancelled</option>
+                        </select>
+                    </div>
+                    <div class="form-group span-1">
+                        <label for="assigned_user">Assigned Agent</label>
+                        <input type="text" id="assigned_user" name="assigned_user" value="<?php echo htmlspecialchars(get_field_value('assigned_user', '', $text, $_SESSION['user_name'] ?? '')); ?>">
+                    </div>
+                    <div class="form-group span-2">
+                        <label for="remarks">Remarks</label>
+                        <textarea id="remarks" name="remarks" rows="2" placeholder="Remarks" style="min-height: 34px;"><?php echo htmlspecialchars(get_field_value('remarks', '', $text)); ?></textarea>
+                    </div>
+
+                    <!-- SUBMIT BUTTON -->
+                    <button type="submit" name="save_booking" class="btn span-4" style="margin-top: 15px; padding: 12px; font-size: 14px; justify-content: center; width: 100%;">
+                        Confirm & Save Booking
+                    </button>
+                </div>
             </div>
         </form>
+    </div>
     </div>
 </div>
 

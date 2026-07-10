@@ -40,7 +40,7 @@ $result = mysqli_query($db, $query);
 $cust = mysqli_fetch_assoc($result);
 
 if (!$cust) {
-    echo "<div style='padding: 40px; text-align: center; font-family: sans-serif;'><h2>Customer not found.</h2><a href='list.php'>Back to list</a></div>";
+    echo "<div style='padding: 40px; text-align: center; font-family: sans-serif;'><h2>Customer not found.</h2><a href='list.php'>Back to master</a></div>";
     exit;
 }
 
@@ -74,17 +74,76 @@ $success = isset($_GET['success']);
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Customer Details | Travel CRM</title>
+    <title>Customer Details | <?= htmlspecialchars(COMPANY_NAME) ?></title>
     <link rel="stylesheet" href="../../assets/css/style.css">
     <script>if(localStorage.getItem("sidebar-locked")==="true")document.documentElement.classList.add("sidebar-pref-locked");</script>
     <script src="../../assets/js/sidebar.js" defer></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
+        body {
+            height: 100vh;
+            overflow: hidden;
+            margin: 0;
+            background: #f8fafc;
+            font-family: 'Outfit', sans-serif;
+        }
+        .main {
+            height: calc(100vh - 20px);
+            margin-top: 10px;
+            margin-bottom: 10px;
+            margin-right: 20px;
+            padding: 16px 24px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-sizing: border-box;
+            background: #f8fafc;
+            border: none;
+            box-shadow: none;
+        }
+        .dashboard-title-row {
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .dashboard-title-row h1 {
+            font-size: 20px;
+            font-weight: 700;
+            color: #0f172a;
+            margin: 0;
+        }
+        .view-scroll-area {
+            flex: 1;
+            overflow-y: auto;
+            padding-right: 12px;
+            margin-bottom: 8px;
+            min-height: 0;
+        }
+        .view-scroll-area::-webkit-scrollbar {
+            width: 6px;
+        }
+        .view-scroll-area::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.02);
+            border-radius: 3px;
+        }
+        .view-scroll-area::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        .view-scroll-area::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
         .detail-card {
-            background: #ffffff;
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            border-radius: 20px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
             padding: 24px;
-            box-shadow: var(--shadow-sm);
+            margin-bottom: 24px;
+            box-sizing: border-box;
         }
         .detail-grid {
             display: grid;
@@ -99,22 +158,29 @@ $success = isset($_GET['success']);
         }
         .detail-item {
             border-bottom: 1px solid #f1f5f9;
-            padding-bottom: 10px;
-        }
-        .detail-item:last-child {
-            border-bottom: none;
+            padding-bottom: 12px;
         }
         .detail-label {
             font-size: 11px;
             text-transform: uppercase;
-            color: var(--text-secondary);
+            color: #64748b;
             font-weight: 600;
-            margin-bottom: 4px;
+            margin-bottom: 6px;
+            letter-spacing: 0.5px;
         }
         .detail-value {
-            font-size: 14px;
+            font-size: 15px;
             font-weight: 500;
-            color: var(--text-primary);
+            color: #0f172a;
+        }
+        .badge {
+            border-radius: 20px;
+            padding: 4px 12px;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 700;
+            display: inline-block;
         }
         .badge-walk-in {
             background: #e0f2fe;
@@ -132,37 +198,64 @@ $success = isset($_GET['success']);
             background: #dcfce7;
             color: #166534;
         }
+        .btn {
+            background: linear-gradient(135deg, #0d283f 0%, #1a4970 100%);
+            border: none;
+            border-radius: 10px;
+            padding: 8px 16px;
+            color: white;
+            font-weight: 600;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 6px -1px rgba(13, 40, 63, 0.2);
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 15px -3px rgba(13, 40, 63, 0.3);
+        }
+        .btn-secondary {
+            background: #ffffff;
+            color: #1e293b;
+            border: 1px solid #cbd5e1;
+            box-shadow: none;
+        }
+        .btn-secondary:hover {
+            background: #f8fafc;
+            border-color: #94a3b8;
+            box-shadow: none;
+        }
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            border-radius: 20px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+            padding: 24px;
+            box-sizing: border-box;
+        }
+        hr {
+            margin: 0 0 12px 0;
+            border: 0;
+            border-top: 1px solid #e2e8f0;
+        }
     </style>
 </head>
 <body>
 
-<div class="sidebar">
-    <h2 class="logo">✈ Travel CRM</h2>
-    <a href="../dashboard.php">Dashboard</a>
-    <a href="list.php" class="active">Master</a>
-    <a href="../bookings/list.php">Bookings</a>
-    <a href="../bookings/add.php">Add Booking</a>
-    <a href="../bookings/reports.php">Reports</a>
-    <a href="../enquiry/list.php"<?= (strpos($_SERVER['PHP_SELF'], '/enquiry/') !== false) ? ' class="active"' : '' ?>>Enquiry</a>
-    <a href="../tasks/index.php">Tasks</a>
-    <a href="../admin/activity.php">Activity</a>
-    <a href="../../login.php" class="logout">Logout</a>
-</div>
+<?php include(__DIR__ . "/../../includes/sidebar.php"); ?>
 
 <div class="main">
-    <div class="header">
-        <input class="search" placeholder="Search...">
-        <span class="notify">🔔</span>
-        <a href="../profile/index.php" class="profile-widget">
-            <span>👤 Profile</span>
-        </a>
-    </div>
-
     <div class="dashboard-title-row">
         <h1>Customer Details #<?php echo $cust['id']; ?></h1>
         <div class="time-btns" style="display: flex; gap: 8px;">
             <a href="edit.php?id=<?php echo $cust['id']; ?>" class="btn">✏ Edit Customer</a>
-            <a href="list.php" class="btn btn-secondary">← Back to List</a>
+            <a href="list.php" class="btn btn-secondary">← Back to Master</a>
         </div>
     </div>
 
@@ -179,7 +272,8 @@ $success = isset($_GET['success']);
         </div>
     <?php endif; ?>
 
-    <div class="detail-card">
+    <div class="view-scroll-area">
+        <div class="detail-card">
         <div class="detail-grid">
             <div class="detail-item">
                 <div class="detail-label">Customer ID</div>
@@ -326,6 +420,7 @@ $success = isset($_GET['success']);
                     <?php endif; ?>
                 </tbody>
             </table>
+        </div>
         </div>
     </div>
 </div>

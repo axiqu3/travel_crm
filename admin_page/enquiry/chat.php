@@ -71,14 +71,19 @@ function format_chat_date($datetime)
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Enquiry Conversation | Travel CRM</title>
+    <title>Enquiry Conversation | <?= htmlspecialchars(COMPANY_NAME) ?></title>
     <link rel="stylesheet" href="../../assets/css/style.css">
+    <script>
+        if (window.self !== window.top) {
+            window.top.location.href = window.self.location.href;
+        }
+    </script>
     <script>if(localStorage.getItem("sidebar-locked")==="true")document.documentElement.classList.add("sidebar-pref-locked");</script>
     <script src="../../assets/js/sidebar.js" defer></script>
     <style>
         :root {
-            --primary-color: #2563eb;
-            --primary-hover: #1d4ed8;
+            --primary-color: #0d283f;
+            --primary-hover: #081a29;
             --secondary-color: #64748b;
             --success-color: #22c55e;
             --warning-color: #f59e0b;
@@ -100,7 +105,9 @@ function format_chat_date($datetime)
         body {
             animation: fadeIn 0.3s ease-out;
             background: var(--bg-light);
-            min-height: 100vh;
+            height: 100vh;
+            overflow: hidden;
+            margin: 0;
             color: var(--text-primary);
         }
 
@@ -115,9 +122,15 @@ function format_chat_date($datetime)
             border-radius: 16px;
             border: 1px solid var(--border-color);
             box-shadow: var(--shadow-md);
-            margin: 20px;
-            padding: 32px;
-            min-height: calc(100vh - 40px);
+            margin-top: 10px;
+            margin-bottom: 10px;
+            margin-right: 20px;
+            padding: 16px 24px;
+            height: calc(100vh - 20px);
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+            overflow: hidden;
         }
 
         /* Header */
@@ -134,13 +147,13 @@ function format_chat_date($datetime)
         .dashboard-title-row {
             background: var(--bg-light);
             border-radius: 12px;
-            padding: 20px 24px;
-            margin-bottom: 24px;
+            padding: 10px 16px;
+            margin-bottom: 12px;
             border: 1px solid var(--border-color);
         }
 
         .dashboard-title-row h1 {
-            font-size: 20px;
+            font-size: 16px;
             font-weight: 700;
             color: var(--text-primary);
             margin: 0;
@@ -151,10 +164,10 @@ function format_chat_date($datetime)
             background: var(--primary-color);
             border: none;
             border-radius: 8px;
-            padding: 10px 20px;
+            padding: 6px 12px;
             color: white;
             font-weight: 600;
-            font-size: 13px;
+            font-size: 12px;
             cursor: pointer;
             transition: all 0.2s ease;
             box-shadow: var(--shadow-sm);
@@ -194,7 +207,9 @@ function format_chat_date($datetime)
             overflow: hidden;
             max-width: 900px;
             margin: 0 auto;
-            height: 700px;
+            width: 100%;
+            flex: 1;
+            min-height: 0;
             position: relative;
             display: flex;
             flex-direction: column;
@@ -205,7 +220,7 @@ function format_chat_date($datetime)
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 16px 24px;
+            padding: 8px 16px;
             background: var(--bg-white);
             border-bottom: 1px solid var(--border-color);
             position: sticky;
@@ -214,8 +229,8 @@ function format_chat_date($datetime)
         }
 
         .messaging-avatar {
-            width: 44px;
-            height: 44px;
+            width: 36px;
+            height: 36px;
             border-radius: 50%;
             background: var(--primary-color);
             color: #ffffff;
@@ -223,25 +238,25 @@ function format_chat_date($datetime)
             align-items: center;
             justify-content: center;
             font-weight: 700;
-            font-size: 14px;
+            font-size: 12px;
             box-shadow: var(--shadow-sm);
         }
 
         .messaging-customer-name {
-            font-size: 15px;
+            font-size: 14px;
             font-weight: 700;
             color: var(--text-primary);
         }
 
         .messaging-customer-phone {
-            font-size: 12px;
+            font-size: 11px;
             color: var(--text-secondary);
             font-weight: 500;
         }
 
         /* Connection Status */
         .connection-status {
-            display: flex;
+            display: none !important;
             align-items: center;
             gap: 6px;
             font-size: 11px;
@@ -421,7 +436,7 @@ function format_chat_date($datetime)
 
         /* Input Bar */
         .messaging-input-bar {
-            padding: 16px 24px;
+            padding: 10px 16px;
             background: var(--bg-white);
             border-top: 1px solid var(--border-color);
             display: flex;
@@ -563,20 +578,20 @@ function format_chat_date($datetime)
             position: relative;
             background: var(--bg-white);
             border-bottom: 1px solid var(--border-color);
-            padding: 12px 40px;
+            padding: 8px 24px;
             display: flex;
             align-items: center;
             justify-content: center;
-            height: 50px;
+            height: 40px;
         }
 
         .journey-line {
             position: absolute;
             height: 2px;
             background: var(--border-color);
-            width: calc(100% - 80px);
-            top: 24px;
-            left: 40px;
+            width: calc(100% - 48px);
+            top: 20px;
+            left: 24px;
             z-index: 1;
             border-radius: 1px;
         }
@@ -585,8 +600,8 @@ function format_chat_date($datetime)
             position: absolute;
             height: 2px;
             background: var(--primary-color);
-            top: 24px;
-            left: 40px;
+            top: 20px;
+            left: 24px;
             z-index: 2;
             transition: width 0.4s ease;
             border-radius: 1px;
@@ -1028,7 +1043,9 @@ function format_chat_date($datetime)
             }
 
             .messaging-app-container {
-                height: calc(100vh - 200px);
+                height: auto;
+                flex: 1;
+                min-height: 0;
                 border-radius: 12px;
             }
 
@@ -1119,22 +1136,68 @@ function format_chat_date($datetime)
         .scroll-to-bottom.visible {
             display: flex;
         }
+
+        /* Booking Modal Styling */
+        .booking-modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            z-index: 10000;
+            justify-content: center;
+            align-items: center;
+            animation: modalFadeIn 0.3s ease-out;
+        }
+        .booking-modal-overlay.active {
+            display: flex;
+        }
+        .booking-modal-content {
+            background: #f8fafc;
+            width: 95%;
+            max-width: 1300px;
+            height: 92%;
+            border-radius: 20px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid rgba(226, 232, 240, 0.8);
+        }
+        .booking-modal-close {
+            position: absolute;
+            top: 15px;
+            right: 25px;
+            font-size: 32px;
+            font-weight: 700;
+            color: #64748b;
+            cursor: pointer;
+            z-index: 10001;
+            transition: color 0.2s;
+        }
+        .booking-modal-close:hover {
+            color: #0f172a;
+        }
+        .booking-iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: transparent;
+        }
+        @keyframes modalFadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
     </style>
 </head>
 <body>
 
-<div class="sidebar">
-    <h2 class="logo">✈ Travel CRM</h2>
-    <a href="../dashboard.php">Dashboard</a>
-    <a href="../master/list.php">Master</a>
-    <a href="../bookings/list.php">Bookings</a>
-    <a href="../bookings/add.php">Add Booking</a>
-    <a href="../bookings/reports.php">Reports</a>
-    <a href="list.php" class="active">Enquiry</a>
-    <a href="../tasks/index.php">Tasks</a>
-    <a href="../admin/activity.php">Activity</a>
-    <a href="../../login.php" class="logout">Logout</a>
-</div>
+<?php include(__DIR__ . "/../../includes/sidebar.php"); ?>
 
 <div class="main">
 
@@ -1142,32 +1205,30 @@ function format_chat_date($datetime)
     <!-- Sticky Dashboard Title Action Row -->
     <div class="dashboard-title-row">
         <div>
-            <h1 style="margin: 0; font-size: 20px; color: var(--text-primary);">
+            <h1 style="margin: 0; font-size: 16px; color: var(--text-primary);">
                 <?php echo htmlspecialchars($enquiry["customer_name"]); ?>
             </h1>
         </div>
         <div class="time-btns" style="display: flex; gap: 8px;">
             <?php if (($enquiry["status"] ?? "") !== "Booked"): ?>
-                <a href="add_booking.php?customer_name=<?php echo urlencode(
-                    $enquiry["customer_name"],
-                ); ?>&mobile=<?php echo urlencode(
-    $enquiry["mobile"],
-); ?>&email=<?php echo urlencode(
-    $enquiry["email"],
-); ?>&enquiry_id=<?php echo $enquiry[
-    "id"
-]; ?>" class="btn" style="background: #10b981; border: none; color: white;">+ Add Booking</a>
+                <a href="add_booking.php?customer_name=<?php echo urlencode($enquiry['customer_name']); ?>&mobile=<?php echo urlencode($enquiry['mobile']); ?>&email=<?php echo urlencode($enquiry['email']); ?>&enquiry_id=<?php echo $enquiry['id']; ?>" class="btn" style="background: #0d283f; border: none; color: white;">+ Add Booking</a>
             <?php endif; ?>
-            <a href="../master/add.php?name=<?php echo urlencode($enquiry['customer_name']); ?>&mobile=<?php echo urlencode($enquiry['mobile']); ?>&email=<?php echo urlencode($enquiry['email']); ?>" class="btn" style="background: #3b82f6; border: none; color: white;">👤 Add Customer</a>
+            <a href="../master/add.php?name=<?php echo urlencode($enquiry['customer_name']); ?>&mobile=<?php echo urlencode($enquiry['mobile']); ?>&email=<?php echo urlencode($enquiry['email']); ?>&redirect_to=chat&enquiry_id=<?php echo $enquiry['id']; ?>" class="btn" style="background: #0d283f; border: none; color: white;">👤 Add Customer</a>
             <a href="list.php" class="btn btn-secondary">Back to List</a>
         </div>
     </div>
 
-    <hr style="margin-bottom: 20px; border-color: var(--border-dark);">
+    <hr style="margin: 0 0 12px 0; border-color: var(--border-dark);">
 
     <?php if (isset($_GET["booking_added"]) && $_GET["booking_added"] == 1): ?>
         <div style="max-width: 800px; margin: 0 auto 20px auto; padding: 12px 20px; border-radius: 12px; font-weight: 600; background: #dcfce7; color: #166534; border: 1px solid #bbf7d0;">
             Booking added successfully!
+        </div>
+    <?php endif; ?>
+
+    <?php if (isset($_GET["customer_added"]) && $_GET["customer_added"] == 1): ?>
+        <div style="max-width: 800px; margin: 0 auto 20px auto; padding: 12px 20px; border-radius: 12px; font-weight: 600; background: #dcfce7; color: #166534; border: 1px solid #bbf7d0;">
+            Customer added to Master successfully!
         </div>
     <?php endif; ?>
 
@@ -1220,6 +1281,7 @@ function format_chat_date($datetime)
                     <div class="connection-dot" id="connectionDot"></div>
                     <span id="connectionText">Live</span>
                 </div>
+                <?php if (!in_array(strtolower($enquiry["status"] ?? ""), ["booked", "converted"])): ?>
                 <div class="status-quick-tabs">
                     <button onclick="updateChatStatus(<?php echo $enquiry[
                         "id"
@@ -1240,6 +1302,7 @@ function format_chat_date($datetime)
                         ✕ Cancel
                     </button>
                 </div>
+                <?php endif; ?>
                 <span id="chat_status_badge" class="badge <?php echo strtolower(
                     $enquiry["status"] ?: "new",
                 ); ?>">
@@ -2170,12 +2233,38 @@ function closeLightbox() {
         lightbox.classList.remove('active');
     }
 }
+
+function openBookingModal(url) {
+    const modal = document.getElementById('bookingModal');
+    const iframe = document.getElementById('bookingIframe');
+    if (modal && iframe) {
+        iframe.src = url;
+        modal.classList.add('active');
+    }
+}
+
+function closeBookingModal() {
+    const modal = document.getElementById('bookingModal');
+    const iframe = document.getElementById('bookingIframe');
+    if (modal && iframe) {
+        modal.classList.remove('active');
+        iframe.src = '';
+    }
+}
 </script>
 
 <!-- Lightbox Modal -->
 <div id="lightbox" class="lightbox-overlay" onclick="closeLightbox()">
     <span class="lightbox-close">&times;</span>
     <img id="lightbox-img" class="lightbox-content" onclick="event.stopPropagation()">
+</div>
+
+<!-- Booking Modal -->
+<div id="bookingModal" class="booking-modal-overlay">
+    <div class="booking-modal-content">
+        <span class="booking-modal-close" onclick="closeBookingModal()">&times;</span>
+        <iframe id="bookingIframe" class="booking-iframe" src=""></iframe>
+    </div>
 </div>
 
 <!-- Success Toast -->

@@ -266,7 +266,7 @@ server.listen(PORT, () => {
 async function sendEnquiryToPhp(senderNumber, messageText, pushName, mediaPath = '', mediaType = 'none', originalFilename = '', mediaDuration = 0) {
   const url = process.env.PHP_ENDPOINT || 'http://localhost/travel_crm/admin_page/enquiry/whatsapp_webhook.php';
   
-  const customerName = pushName ? pushName : `WhatsApp: ${senderNumber}`;
+  const customerName = pushName ? pushName : senderNumber;
 
   // Prepare form-urlencoded data
   const params = new URLSearchParams();
@@ -557,7 +557,7 @@ async function startWhatsApp() {
           senderNumber,
           messageText,
           timestamp: receivedAt.getTime(),
-          pushName: msg.pushName || '',
+          pushName: msg.key.fromMe ? '' : (msg.pushName || ''),
           direction: msg.key.fromMe ? 'outgoing_manual' : 'incoming',
           mediaPath: mediaPath || '',
           mediaType: mediaType,

@@ -1,4 +1,7 @@
 whatsapp-listener/node_modules/
 whatsapp-listener/auth_info/
 whatsapp-listener/.env
+includes/db.local.php
+.sessions/
+.db-repair-backup/
 uploads/whatsapp_media/*

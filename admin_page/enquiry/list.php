@@ -146,7 +146,7 @@ $data = mysqli_query($db, $data_query);
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Enquiries Hub | Travel CRM</title>
+    <title>Enquiries Hub | <?= htmlspecialchars(COMPANY_NAME) ?></title>
     <link rel="stylesheet" href="../../assets/css/style.css">
     <script>if(localStorage.getItem("sidebar-locked")==="true")document.documentElement.classList.add("sidebar-pref-locked");</script>
     <script src="../../assets/js/sidebar.js" defer></script>
@@ -356,61 +356,46 @@ $data = mysqli_query($db, $data_query);
 </head>
 <body>
 
-<div class="sidebar">
-    <h2 class="logo">✈ Travel CRM</h2>
-    <a href="../dashboard.php">Dashboard</a>
-    <a href="../master/list.php">Master</a>
-    <a href="../bookings/list.php">Bookings</a>
-    <a href="../bookings/add.php">Add Booking</a>
-    <a href="../bookings/reports.php">Reports</a>
-    <a href="list.php" class="active">Enquiry</a>
-    <a href="../tasks/index.php">Tasks</a>
-    <a href="../admin/activity.php">Activity</a>
-    <a href="../../login.php" class="logout">Logout</a>
-</div>
+<?php include(__DIR__ . "/../../includes/sidebar.php"); ?>
 
 <div class="main" id="enquiry-dashboard">
-    <div class="header">
-        <form method="GET" action="list.php" style="flex: 1; max-width: 400px; display: flex;">
-            <input name="q" class="search" placeholder="Search enquiries..." value="<?php echo htmlspecialchars($search); ?>" style="width: 100%;">
-            <?php if ($filter_date !== ''): ?><input type="hidden" name="date" value="<?php echo htmlspecialchars($filter_date); ?>"><?php endif; ?>
-            <?php if ($filter_status !== ''): ?><input type="hidden" name="status" value="<?php echo htmlspecialchars($filter_status); ?>"><?php endif; ?>
-            <?php if ($filter_source !== ''): ?><input type="hidden" name="source" value="<?php echo htmlspecialchars($filter_source); ?>"><?php endif; ?>
-        </form>
-        <span class="notify" style="position: relative; display: inline-flex; align-items: center; justify-content: center;">
-            🔔
-            <?php if ($unread_count > 0): ?>
-                <span class="bell-badge" style="position: absolute; top: -5px; right: -5px; background: #ef4444; color: white; border-radius: 50%; padding: 2px 6px; font-size: 10px; font-weight: 700; line-height: 1; min-width: 16px; text-align: center; box-shadow: 0 0 0 2px var(--bg-primary);"><?php echo $unread_count; ?></span>
-            <?php endif; ?>
-        </span>
-        <a href="../profile/index.php" class="profile-widget">
-            <span>👤 Profile</span>
-        </a>
-    </div>
 
+    <?php
+    $title_display = "Enquiries Hub";
+    if ($filter_source === "Email") {
+        $title_display = "Email Enquiries";
+    } elseif ($filter_source === "WhatsApp") {
+        $title_display = "WhatsApp Enquiries";
+    }
+    ?>
     <div class="dashboard-title-row">
         <div style="display: flex; align-items: center; gap: 12px;">
-            <h1>Enquiries Hub</h1>
+            <h1><?php echo htmlspecialchars($title_display); ?></h1>
             <button id="btnBulkDelete" onclick="deleteSelectedEnquiries()" class="btn" style="background: #ef4444; border: none; color: white; padding: 6px 12px; font-size: 12px; border-radius: 8px; display: none; align-items: center; gap: 6px; cursor: pointer;">
                 🗑 Delete Selected (<span id="deleteCount">0</span>)
             </button>
         </div>
         <div style="display: flex; gap: 8px;">
-            <a href="check_emails.php" class="btn" style="background: #3b82f6; border: none; color: white; display: flex; align-items: center; gap: 6px; cursor: pointer; text-decoration: none;">
+            <?php if ($filter_source !== 'WhatsApp'): ?>
+            <a href="check_emails.php" class="btn" style="background: linear-gradient(135deg, #0d283f 0%, #1a4970 100%); border: none; color: white; display: flex; align-items: center; gap: 6px; cursor: pointer; text-decoration: none; box-shadow: 0 4px 6px -1px rgba(13, 40, 63, 0.2);">
                 <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
                     <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4Zm2-1a1 1 0 0 0-1 1v.217l7 4.2 7-4.2V4a1 1 0 0 0-1-1H2Zm13 2.383-4.708 2.825L15 11.105V5.383Zm-.034 6.876-5.64-3.471L8 9.583l-1.326-.795-5.64 3.47A1 1 0 0 0 2 13h12a1 1 0 0 0 .966-.741ZM1 11.105l4.708-2.897L1 5.383v5.722Z"/>
                 </svg>
                 Check Email
             </a>
-            <a href="check_whatsapp.php" class="btn" style="background: #25D366; border: none; color: white; display: flex; align-items: center; gap: 6px; cursor: pointer; text-decoration: none;">
+            <?php endif; ?>
+
+            <?php if ($filter_source !== 'Email'): ?>
+            <a href="check_whatsapp.php" class="btn" style="background: linear-gradient(135deg, #0d283f 0%, #1a4970 100%); border: none; color: white; display: flex; align-items: center; gap: 6px; cursor: pointer; text-decoration: none; box-shadow: 0 4px 6px -1px rgba(13, 40, 63, 0.2);">
                 <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
                     <path d="M13.601 2.326A7.854 7.854 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.933 7.933 0 0 0 3.79.977h.004c4.368 0 7.927-3.56 7.93-7.928a7.886 7.886 0 0 0-2.327-5.615zM7.994 14.521a6.573 6.573 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.557 6.557 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592zm3.69-4.98c-.204-.104-1.207-.596-1.394-.664-.189-.07-.326-.104-.462.104-.137.207-.53.664-.65.804-.12.137-.24.154-.444.053-.204-.1-.864-.319-1.646-1.018-.607-.542-1.018-1.213-1.137-1.418-.12-.204-.013-.315.088-.416.09-.091.204-.24.306-.36.1-.12.133-.2.2-.333.067-.133.033-.25-.017-.35-.05-.1-462-1.114-.63-1.523-.164-.397-.335-.343-.462-.35-.126-.007-.271-.007-.416-.007a.81.81 0 0 0-.588.275c-.204.207-.78.761-.78 1.857 0 1.095.8 2.153.91 2.302.112.15 1.573 2.4 3.81 3.364.533.23 1.0.367 1.343.475.534.17 1.02.146 1.402.089.426-.064 1.207-.493 1.378-.967.172-.474.172-.88.12-.967-.05-.084-.189-.133-.393-.237z"/>
                 </svg>
                 Check WhatsApp
             </a>
+            <?php endif; ?>
 
-            <a href="add.php" class="btn">+ Add Enquiry</a>
-            <button onclick="toggleDeleteMode()" class="btn" style="background: #ef4444; border: none; color: white; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+            <a href="add.php" class="btn" style="background: linear-gradient(135deg, #0d283f 0%, #1a4970 100%); border: none; color: white; box-shadow: 0 4px 6px -1px rgba(13, 40, 63, 0.2);">+ Add Enquiry</a>
+            <button onclick="toggleDeleteMode()" class="btn" style="background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); border: none; color: white; display: flex; align-items: center; gap: 6px; cursor: pointer; box-shadow: 0 4px 6px -1px rgba(239, 68, 68, 0.2);">
                 🗑 Delete Options
             </button>
         </div>
@@ -418,6 +403,20 @@ $data = mysqli_query($db, $data_query);
     
     <hr>
 
+    <!-- Sticky Search Bar -->
+    <div class="search-bar-container">
+        <form method="GET" action="list.php" style="width: 100%; display: flex;">
+            <input type="text" name="q" class="search" placeholder="Search enquiries by name, subject, message, mobile..." value="<?php echo htmlspecialchars($search); ?>">
+            <?php if ($filter_date !== ''): ?><input type="hidden" name="date" value="<?php echo htmlspecialchars($filter_date); ?>"><?php endif; ?>
+            <?php if ($filter_status !== ''): ?><input type="hidden" name="status" value="<?php echo htmlspecialchars($filter_status); ?>"><?php endif; ?>
+            <?php if ($filter_source !== ''): ?><input type="hidden" name="source" value="<?php echo htmlspecialchars($filter_source); ?>"><?php endif; ?>
+            <?php if ($search !== ""): ?>
+                <a href="list.php?<?php echo http_build_query(array_filter(['date' => $filter_date, 'status' => $filter_status, 'source' => $filter_source])); ?>" class="btn btn-secondary" style="margin-left: 8px; padding: 6px 12px; font-size: 11px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; background: #e2e8f0; border: 1px solid #cbd5e1; color: #475569;">Clear</a>
+            <?php endif; ?>
+        </form>
+    </div>
+
+    <?php if (empty($filter_source)): ?>
     <form method="GET" action="list.php" style="margin: 20px 0; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; background: #ffffff; padding: 12px 20px; border-radius: 10px; border: 1px solid #eaedf2; box-shadow: var(--shadow-sm);">
         <input type="hidden" name="q" value="<?php echo htmlspecialchars($search); ?>">
 
@@ -465,6 +464,7 @@ $data = mysqli_query($db, $data_query);
             <a href="list.php" class="btn btn-secondary" style="padding: 6px 12px; font-size: 11px; border-radius: 6px; text-decoration: none; display: inline-flex; align-items: center; background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1;">✕ Clear Filters</a>
         <?php endif; ?>
     </form>
+    <?php endif; ?>
 
     <?php if (isset($_GET['success']) && $_GET['success'] == 1): ?>
         <div style="padding: 12px 20px; border-radius: 12px; margin-bottom: 20px; font-weight: 600; 

@@ -759,6 +759,36 @@ if (isset($_POST["save_booking"])) {
 .booking-grid .span-4 {
     grid-column: span 4;
 }
+.uploaded-ticket-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 18px;
+    border: 1px solid #bbf7d0;
+    border-radius: 12px;
+    background: #f0fdf4;
+    color: #166534;
+}
+.uploaded-ticket-summary strong {
+    display: block;
+    margin-bottom: 3px;
+}
+.uploaded-ticket-summary span {
+    font-size: 13px;
+    word-break: break-word;
+}
+.uploaded-ticket-summary a {
+    flex: 0 0 auto;
+    padding: 9px 13px;
+    border: 1px solid #86efac;
+    border-radius: 8px;
+    color: #166534;
+    background: #ffffff;
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none;
+}
 
 /* Autocomplete CSS */
 .autocomplete-dropdown {
@@ -848,6 +878,11 @@ html.sidebar-pref-locked .booking-add-screen .sidebar {
     html.sidebar-pref-locked .booking-add-screen .main {
         margin-left: 0 !important;
     }
+
+    .uploaded-ticket-summary {
+        align-items: flex-start;
+        flex-direction: column;
+    }
 }
 </style>
 </head>
@@ -882,12 +917,14 @@ html.sidebar-pref-locked .booking-add-screen .sidebar {
     <form method="POST" enctype="multipart/form-data" autocomplete="off">
         <input type="hidden" name="ticket_path" value="<?php echo htmlspecialchars($ticket_path); ?>">
 
-        <!-- Top Card: Upload & OCR -->
+        <!-- Top Card: Upload -->
         <div class="card" style="margin-bottom: 24px;">
-            <h2>Upload Ticket & OCR Console</h2>
-            <p style="color: var(--text-secondary); margin-bottom: 20px; font-size: 14px;">
-                Upload your ticket image or PDF to extract details. Correct any extracted fields below, fill in manual inputs, and save.
-                    <div class="form-row" style="align-items: flex-end; gap: 16px;">
+            <?php if (empty($ticket_path)): ?>
+                <h2>Upload Ticket</h2>
+                <p style="color: var(--text-secondary); margin-bottom: 20px; font-size: 14px;">
+                    Upload your ticket image or PDF. Booking details will appear after the file is processed.
+                </p>
+                <div class="form-row" style="align-items: flex-end; gap: 16px;">
                 <div class="form-group" style="flex: 1; margin-bottom: 0;">
                     <label for="ticket">Upload Ticket File</label>
                     <div id="ticket-drop-zone" class="ticket-drop-zone" tabindex="0">
@@ -904,9 +941,18 @@ html.sidebar-pref-locked .booking-add-screen .sidebar {
                 <div class="d-flex gap-2" style="margin-bottom: 0; align-self: flex-end;">
                     <button type="submit" name="extract_ticket" id="extract-btn" formnovalidate style="padding: 11px 20px; background: var(--accent-color); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">Extract Document</button>
                     <button type="button" onclick="window.location.href='add.php'" style="padding: 11px 20px; background: rgba(255,255,255,0.08); color: white; border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; font-weight: 600; cursor: pointer;">Clear</button>
-                    <button type="button" id="manual-btn" onclick="showManualForm()" style="padding: 11px 20px; background: #10b981; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; <?php echo !empty($text) ? 'display: none;' : ''; ?>">Enter Details Manually</button>
                 </div>
             </div>
+            <?php else: ?>
+                <h2>Ticket Uploaded</h2>
+                <div class="uploaded-ticket-summary" role="status">
+                    <div>
+                        <strong>✓ File processed successfully</strong>
+                        <span><?php echo htmlspecialchars(basename($ticket_path)); ?></span>
+                    </div>
+                    <a href="add.php">Upload Different File</a>
+                </div>
+            <?php endif; ?>
 
             <div class="form-group" id="doc-type-group" style="display:none; margin-top: 16px;">
                 <label for="document_type">Document Type</label>
@@ -921,22 +967,10 @@ html.sidebar-pref-locked .booking-add-screen .sidebar {
                 <p id="detected-type-msg" style="font-size: 12px; color: var(--status-booked-text); margin-top: 6px;"></p>
             </div>
 
-            <?php if (!empty($ticket_path)): ?>
-                <div style="margin-top: 16px; font-size: 13px; color: var(--status-booked-text); font-weight: 600;">
-                    📄 Uploaded Ticket Path: <span style="font-family: monospace;"><?php echo htmlspecialchars($ticket_path); ?></span>
-                </div>
-            <?php endif; ?>
-
-            <?php if (!empty($text)): ?>
-                <div style="margin-top: 24px; padding: 16px; background: #f8fafc; border: 1px solid var(--border-dark); border-radius: 12px;">
-                    <h3 style="font-size: 14px; margin-bottom: 8px; color: var(--text-main);">Extracted Raw Text:</h3>
-                    <pre style="white-space: pre-wrap; font-family: monospace; font-size: 12px; max-height: 250px; overflow-y: auto; color: var(--text-secondary);"><?php echo htmlspecialchars($text); ?></pre>
-                </div>
-            <?php endif; ?>
         </div>
     </form>
 
-    <div id="booking-details-form" style="<?php echo empty($text) ? 'display: none;' : ''; ?>">
+    <div id="booking-details-form" style="<?php echo empty($ticket_path) ? 'display: none;' : ''; ?>">
         <?php
         $ticket_sections = split_ocr_text_into_tickets($text);
         $ticket_count = count($ticket_sections);
@@ -1303,8 +1337,6 @@ html.sidebar-pref-locked .booking-add-screen .sidebar {
             </form>
         <?php endif; ?>
     </div>
-        </div>
-    </form>
 </div>
 
 <script>
@@ -1415,17 +1447,6 @@ html.sidebar-pref-locked .booking-add-screen .sidebar {
 </script>
 
 <script>
-function showManualForm() {
-    const formEl = document.getElementById('booking-details-form');
-    if (formEl) {
-        formEl.style.display = 'block';
-    }
-    const manualBtn = document.getElementById('manual-btn');
-    if (manualBtn) {
-        manualBtn.style.display = 'none';
-    }
-}
-
 function calculateTicketProfit(i) {
     const buy = parseFloat(document.getElementById('buying_cost_' + i).value) || 0;
     const sell = parseFloat(document.getElementById('selling_cost_' + i).value) || 0;

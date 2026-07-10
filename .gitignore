@@ -5,3 +5,5 @@ includes/db.local.php
 .sessions/
 .db-repair-backup/
 uploads/whatsapp_media/*
+/uploads/tickets/*
+!/uploads/tickets/.gitkeep

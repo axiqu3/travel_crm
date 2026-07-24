@@ -1,15 +1,33 @@
 <?php
 require_once(__DIR__ . "/../../includes/db.php");
 require_once(__DIR__ . "/../../includes/auth.php");
-check_auth('admin');
+check_auth();
 
 $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 $message = "";
 $message_type = "";
+$is_admin = ($_SESSION['user_role'] ?? '') === 'admin';
+$current_user_name = mysqli_real_escape_string($db, (string) ($_SESSION['user_name'] ?? ''));
+$booking_owner_sql = $is_admin
+    ? ''
+    : " AND created_by = '$current_user_name'";
+
+// Authorize the booking before allowing view, upload, attachment deletion, or
+// booking deletion. Admins can access every booking; users can access only
+// bookings created by them.
+$query = "SELECT * FROM bookings WHERE id = $id$booking_owner_sql LIMIT 1";
+$result = mysqli_query($db, $query);
+$booking = $result ? mysqli_fetch_assoc($result) : null;
+
+if (!$booking) {
+    http_response_code(404);
+    echo "<div style='padding: 40px; text-align: center; font-family: sans-serif;'><h2>Booking not found.</h2><a href='list.php'>Back to list</a></div>";
+    exit;
+}
 
 // Handle Delete Booking Request
 if (isset($_POST['delete'])) {
-    $delete_query = "DELETE FROM bookings WHERE id = $id";
+    $delete_query = "DELETE FROM bookings WHERE id = $id$booking_owner_sql";
     if (mysqli_query($db, $delete_query)) {
         header("Location: list.php");
         exit;
@@ -80,16 +98,6 @@ if (isset($_POST['delete_attachment']) && isset($_POST['attachment_id'])) {
     }
 }
 
-// Fetch booking details
-$query = "SELECT * FROM bookings WHERE id = $id";
-$result = mysqli_query($db, $query);
-$booking = mysqli_fetch_assoc($result);
-
-if (!$booking) {
-    echo "<div style='padding: 40px; text-align: center; font-family: sans-serif;'><h2>Booking not found.</h2><a href='list.php'>Back to list</a></div>";
-    exit;
-}
-
 // Fetch attachments
 $attachments_query = mysqli_query($db, "SELECT * FROM booking_attachments WHERE booking_id = $id ORDER BY id DESC");
 
@@ -99,6 +107,7 @@ $selling_cost = floatval($booking['selling_cost']);
 $booking_status = $booking['status'] ?: 'Booked';
 $booking_status_class = strtolower(trim(preg_replace('/[^a-z0-9]+/i', '-', $booking_status), '-'));
 $booking_date_display = !empty($booking['booking_date']) ? date('d M Y', strtotime($booking['booking_date'])) : 'Not set';
+$booking_document_type = strtolower(trim((string) ($booking['document_type'] ?? '')));
 $route_display = trim(($booking['from_city'] ?: '') . ((!empty($booking['from_city']) || !empty($booking['to_city'])) ? ' to ' : '') . ($booking['to_city'] ?: ''));
 $route_display = $route_display ?: ($booking['customer_name'] ?: 'Not set');
 ?>
@@ -160,13 +169,12 @@ $route_display = $route_display ?: ($booking['customer_name'] ?: 'Not set');
             margin: 0;
         }
     </style>
-    <link rel="stylesheet" href="../../assets/css/premium-booking-view.css">
 </head>
 <body>
 
 <?php include(__DIR__ . "/../../includes/sidebar.php"); ?>
 
-<main class="main booking-view-page">
+<main class="main booking-view-page booking-compact-view">
     <header class="booking-page-topbar">
         <div>
             <p class="booking-page-eyebrow">Booking workspace</p>
@@ -175,7 +183,6 @@ $route_display = $route_display ?: ($booking['customer_name'] ?: 'Not set');
         </div>
         <div class="booking-page-actions">
             <a href="list.php" class="booking-btn">Back to bookings</a>
-            <a href="edit.php?id=<?php echo (int) $booking['id']; ?>" class="booking-btn booking-btn-primary">Edit booking</a>
         </div>
     </header>
 
@@ -211,7 +218,7 @@ $route_display = $route_display ?: ($booking['customer_name'] ?: 'Not set');
             
             <!-- Booking Details Card -->
             <div class="card booking-section">
-                <?php if ($booking['service_type'] === 'Flight'): ?>
+                <?php if ($booking_document_type === 'ticket' || $booking['service_type'] === 'Flight'): ?>
                     <h2>Flight and ticket details</h2>
                     <hr style="margin: 16px 0;">
                     <div class="info-grid">
@@ -274,7 +281,7 @@ $route_display = $route_display ?: ($booking['customer_name'] ?: 'Not set');
                             <p><?php echo htmlspecialchars($booking["service_type"]); ?></p>
                         </div>
                     </div>
-                <?php elseif ($booking['service_type'] === 'Hotel'): ?>
+                <?php elseif ($booking_document_type === 'hotel' || $booking['service_type'] === 'Hotel'): ?>
                     <h2>Hotel voucher details</h2>
                     <hr style="margin: 16px 0;">
                     <div class="info-grid">
@@ -323,7 +330,7 @@ $route_display = $route_display ?: ($booking['customer_name'] ?: 'Not set');
                             <p><?php echo htmlspecialchars($booking["service_type"]); ?></p>
                         </div>
                     </div>
-                <?php elseif ($booking['service_type'] === 'Visa'): ?>
+                <?php elseif ($booking_document_type === 'visa' || $booking['service_type'] === 'Visa'): ?>
                     <h2>Visa details</h2>
                     <hr style="margin: 16px 0;">
                     <div class="info-grid">
@@ -372,7 +379,26 @@ $route_display = $route_display ?: ($booking['customer_name'] ?: 'Not set');
                             <p><?php echo htmlspecialchars($booking["service_type"]); ?></p>
                         </div>
                     </div>
-                <?php elseif ($booking['service_type'] === 'Travel Insurance'): ?>
+                <?php elseif ($booking_document_type === 'passport' || $booking['service_type'] === 'Passport'): ?>
+                    <h2>Passport details</h2>
+                    <hr style="margin: 16px 0;">
+                    <div class="info-grid">
+                        <?php
+                        $passport_view_fields = [
+                            'Passport Number' => 'passport_number', 'Passport Type' => 'passport_type',
+                            'Issuing Country' => 'passport_issuing_country', 'Country Code' => 'passport_country_code',
+                            'Full Name' => 'passport_full_name', 'Surname' => 'passport_surname',
+                            'Given Names' => 'passport_given_names', 'Nationality' => 'passport_nationality',
+                            'Gender' => 'passport_gender', 'Date of Birth' => 'passport_date_of_birth',
+                            'Place of Birth' => 'passport_place_of_birth', 'Date of Issue' => 'passport_date_of_issue',
+                            'Date of Expiry' => 'passport_date_of_expiry', 'Place of Issue' => 'passport_place_of_issue',
+                            'Authority' => 'passport_authority', 'MRZ Line 1' => 'passport_mrz_line1', 'MRZ Line 2' => 'passport_mrz_line2'
+                        ];
+                        foreach ($passport_view_fields as $label => $field): ?>
+                            <div class="info-card-item"><h4><?php echo htmlspecialchars($label); ?></h4><p><?php echo htmlspecialchars($booking[$field] ?: '-'); ?></p></div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php elseif ($booking_document_type === 'insurance' || in_array($booking['service_type'], ['Insurance', 'Travel Insurance'], true)): ?>
                     <h2>Travel insurance details</h2>
                     <hr style="margin: 16px 0;">
                     <div class="info-grid">
@@ -404,6 +430,21 @@ $route_display = $route_display ?: ($booking['customer_name'] ?: 'Not set');
                             <h4>Coverage End Date</h4>
                             <p><?php echo htmlspecialchars($booking["insurance_end_date"] ?: '-'); ?></p>
                         </div>
+                        <?php
+                        $insurance_extra_fields = [
+                            'Insured Person Name' => 'insurance_insured_name',
+                            'Passport Number' => 'insurance_passport_no',
+                            'Policy Issue Date' => 'insurance_issue_date',
+                            'Number of Days' => 'insurance_days',
+                            'Premium Amount' => 'insurance_premium_amount',
+                            'Emergency Assistance Number' => 'insurance_emergency_no',
+                            'Certificate Number' => 'insurance_certificate_no',
+                            'Coverage Details' => 'insurance_coverage_details',
+                            'Remarks' => 'insurance_remarks'
+                        ];
+                        foreach ($insurance_extra_fields as $label => $field): ?>
+                            <div class="info-card-item"><h4><?php echo htmlspecialchars($label); ?></h4><p><?php echo htmlspecialchars((string) ($booking[$field] ?? '-')); ?></p></div>
+                        <?php endforeach; ?>
                         <div class="info-card-item">
                             <h4>Sum Insured</h4>
                             <p><?php echo $booking["insurance_sum_insured"] !== null ? '₹' . number_format($booking["insurance_sum_insured"], 2) : '-'; ?></p>
@@ -421,7 +462,7 @@ $route_display = $route_display ?: ($booking['customer_name'] ?: 'Not set');
                             <p><?php echo htmlspecialchars($booking["service_type"]); ?></p>
                         </div>
                     </div>
-                <?php else: ?>
+                <?php elseif ($booking_document_type === 'package' || in_array($booking['service_type'], ['Tour Package', 'Holiday Package'], true)): ?>
                     <h2>Holiday package details</h2>
                     <hr style="margin: 16px 0;">
                     <div class="info-grid">
@@ -465,6 +506,27 @@ $route_display = $route_display ?: ($booking['customer_name'] ?: 'Not set');
                             <h4>Meals</h4>
                             <p><?php echo htmlspecialchars($booking["package_meals"] ?: '-'); ?></p>
                         </div>
+                        <?php
+                        $package_extra_fields = [
+                            'Package / Voucher Number' => 'package_voucher_no',
+                            'Country' => 'package_country',
+                            'Passenger / Guest Names' => 'package_guest_names',
+                            'Number of Days' => 'package_days_count',
+                            'Number of Nights' => 'package_nights_count',
+                            'Infants' => 'package_infants_count',
+                            'Room Type' => 'package_room_type',
+                            'Transportation' => 'package_transportation',
+                            'Pickup Details' => 'package_pickup_details',
+                            'Drop-off Details' => 'package_dropoff_details',
+                            'Confirmation Number' => 'package_confirmation_no',
+                            'Inclusions' => 'package_inclusions',
+                            'Exclusions' => 'package_exclusions',
+                            'Package Details' => 'package_details',
+                            'Terms and Conditions' => 'package_terms'
+                        ];
+                        foreach ($package_extra_fields as $label => $field): ?>
+                            <div class="info-card-item"><h4><?php echo htmlspecialchars($label); ?></h4><p><?php echo htmlspecialchars((string) ($booking[$field] ?? '-')); ?></p></div>
+                        <?php endforeach; ?>
                         <div class="info-card-item">
                             <h4>Customer / Agency</h4>
                             <p><?php echo htmlspecialchars($booking["customer_name"] ?: '-'); ?></p>
@@ -484,6 +546,18 @@ $route_display = $route_display ?: ($booking['customer_name'] ?: 'Not set');
                             <p style="font-size: 13px; margin: 0; color: var(--text-main); white-space: pre-wrap;"><?php echo htmlspecialchars($booking["package_itinerary"]); ?></p>
                         </div>
                     <?php endif; ?>
+                <?php else: ?>
+                    <h2>Other service details</h2>
+                    <hr style="margin: 16px 0;">
+                    <div class="info-grid">
+                        <div class="info-card-item"><h4>Service Name / Type</h4><p><?php echo htmlspecialchars($booking['other_service_name'] ?: $booking['service_type'] ?: '-'); ?></p></div>
+                        <div class="info-card-item"><h4>Reference Number</h4><p><?php echo htmlspecialchars($booking['other_reference_no'] ?: '-'); ?></p></div>
+                        <div class="info-card-item"><h4>Service Date</h4><p><?php echo htmlspecialchars($booking['other_service_date'] ?: '-'); ?></p></div>
+                        <div class="info-card-item"><h4>End Date</h4><p><?php echo htmlspecialchars($booking['other_end_date'] ?: '-'); ?></p></div>
+                        <div class="info-card-item"><h4>Country / City</h4><p><?php echo htmlspecialchars(trim(($booking['other_country'] ?: '') . ' ' . ($booking['other_city'] ?: '')) ?: '-'); ?></p></div>
+                        <div class="info-card-item"><h4>From / To</h4><p><?php echo htmlspecialchars(trim(($booking['other_from'] ?: '') . ' / ' . ($booking['other_to'] ?: ''), ' /') ?: '-'); ?></p></div>
+                    </div>
+                    <?php if (!empty($booking['other_details'])): ?><p style="white-space: pre-wrap;"><?php echo htmlspecialchars($booking['other_details']); ?></p><?php endif; ?>
                 <?php endif; ?>
 
                 <?php if (!empty($booking["remarks"])): ?>
@@ -559,6 +633,8 @@ $route_display = $route_display ?: ($booking['customer_name'] ?: 'Not set');
                                         <option value="Voucher">Voucher</option>
                                         <option value="Ticket">Ticket</option>
                                         <option value="Passport">Passport</option>
+                                        <option value="Insurance">Insurance</option>
+                                        <option value="Tour Package">Tour Package</option>
                                         <option value="Other">Other Document</option>
                                     </select>
                                 </div>

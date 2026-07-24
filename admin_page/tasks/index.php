@@ -1,7 +1,7 @@
 <?php
 require_once(__DIR__ . "/../../includes/db.php");
 require_once(__DIR__ . "/../../includes/auth.php");
-check_auth('admin');
+check_auth();
 
 // Ensure task_completions table exists
 mysqli_query($db, "
@@ -17,6 +17,37 @@ CREATE TABLE IF NOT EXISTS task_completions (
 
 $message = "";
 $message_type = "success";
+
+// Save handler (Create / Update)
+if (isset($_POST['save_task'])) {
+    $title = mysqli_real_escape_string($db, $_POST['title']);
+    $description = mysqli_real_escape_string($db, $_POST['description']);
+    $assigned_user_id = $_POST['assigned_user_id'] !== "" ? intval($_POST['assigned_user_id']) : "NULL";
+    $status = mysqli_real_escape_string($db, $_POST['status']);
+    $task_id = isset($_POST['task_id']) ? intval($_POST['task_id']) : 0;
+    
+    if ($task_id > 0) {
+        // Update
+        $sql = "UPDATE tasks SET title = '$title', description = '$description', assigned_user_id = $assigned_user_id, status = '$status' WHERE id = $task_id";
+        if (mysqli_query($db, $sql)) {
+            header("Location: index.php?success=updated");
+            exit;
+        } else {
+            $message = "Error updating task: " . mysqli_error($db);
+            $message_type = "error";
+        }
+    } else {
+        // Create
+        $sql = "INSERT INTO tasks (title, description, assigned_user_id, status) VALUES ('$title', '$description', $assigned_user_id, '$status')";
+        if (mysqli_query($db, $sql)) {
+            header("Location: index.php?success=created");
+            exit;
+        } else {
+            $message = "Error creating task: " . mysqli_error($db);
+            $message_type = "error";
+        }
+    }
+}
 
 // Delete handler
 if (isset($_POST['delete_task']) && isset($_POST['id'])) {
@@ -38,13 +69,38 @@ if (isset($_GET['success'])) {
     $message_type = "success";
 }
 
+// Edit handler loading details
+$edit_task = null;
+if (isset($_GET['edit'])) {
+    $edit_task_id = intval($_GET['edit']);
+    if ($edit_task_id > 0) {
+        $edit_res = mysqli_query($db, "SELECT * FROM tasks WHERE id = $edit_task_id");
+        if ($edit_res && mysqli_num_rows($edit_res) > 0) {
+            $edit_task = mysqli_fetch_assoc($edit_res);
+        }
+    }
+}
+
+// Fetch all users to show everyone (excluding admins)
+$users_query = mysqli_query($db, "SELECT id, name FROM users WHERE role != 'admin' ORDER BY name ASC");
+$users = [];
+while ($users_query && ($u = mysqli_fetch_assoc($users_query))) {
+    $users[] = $u;
+}
+
 // Get search query
 $search = isset($_GET['q']) ? trim($_GET['q']) : '';
 $search_db = mysqli_real_escape_string($db, $search);
 
 $where_clause = "";
 if ($search !== "") {
-    $where_clause = "WHERE t.title LIKE '%$search_db%' OR t.description LIKE '%$search_db%'";
+    $where_clause = "WHERE (
+        CAST(t.id AS CHAR) LIKE '%$search_db%'
+        OR t.title LIKE '%$search_db%'
+        OR t.description LIKE '%$search_db%'
+        OR t.status LIKE '%$search_db%'
+        OR u.name LIKE '%$search_db%'
+    )";
 }
 
 // Fetch all tasks showing everyone (joined with users)
@@ -233,6 +289,155 @@ $total_users = intval($total_users_row['total'] ?? 0);
             color: #1e293b;
             background: transparent;
         }
+
+        /* Modals styling */
+        .modal-backdrop {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 1200;
+            background: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(4px);
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .modal-backdrop.open {
+            display: flex;
+        }
+        
+        .modal-card {
+            width: min(95vw, 1150px);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            border-radius: 14px;
+            background: #fff;
+            box-shadow: 0 24px 60px rgba(15, 39, 71, .28);
+            overflow: hidden;
+            animation: modalFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes modalFadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .modal-head {
+            padding: 18px 22px;
+            background: #fff;
+            color: #0f172a;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .modal-head h2 {
+            margin: 0;
+            color: inherit;
+            font-size: 15px;
+            font-weight: 600;
+        }
+        
+        .modal-close {
+            border: 0;
+            background: transparent;
+            color: #64748b;
+            font-size: 22px;
+            cursor: pointer;
+            line-height: 1;
+            opacity: 0.8;
+            transition: opacity 0.2s;
+        }
+        
+        .modal-close:hover {
+            color: #0f172a;
+            opacity: 1;
+        }
+        
+        .ev-form {
+            padding: 22px;
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 16px;
+        }
+        
+        .ev-form label {
+            display: block;
+            margin-bottom: 6px;
+            color: #475569;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .ev-form input,
+        .ev-form select,
+        .ev-form textarea {
+            width: 100%;
+            padding: 9px 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 7px;
+            background: rgba(0, 0, 0, .02);
+            color: #1e293b;
+            font: inherit;
+            box-sizing: border-box;
+            transition: border-color 0.2s, background-color 0.2s;
+        }
+        
+        .ev-form input:focus,
+        .ev-form select:focus,
+        .ev-form textarea:focus {
+            border-color: #0d283f;
+            background: #fff;
+            outline: none;
+        }
+        
+        .ev-form .span-2 {
+            grid-column: span 2;
+        }
+
+        .ev-form .span-4 {
+            grid-column: span 4;
+        }
+        
+        .modal-actions {
+            grid-column: span 4;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        @media (max-width: 992px) {
+            .ev-form {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+            .ev-form .span-2,
+            .ev-form .span-4,
+            .modal-actions {
+                grid-column: span 2;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .ev-form {
+                grid-template-columns: 1fr;
+            }
+            .ev-form .span-2,
+            .ev-form .span-4,
+            .modal-actions {
+                grid-column: span 1;
+            }
+            .modal-actions {
+                flex-direction: column-reverse;
+            }
+            .modal-actions .btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
     </style>
 </head>
 <body>
@@ -245,14 +450,15 @@ $total_users = intval($total_users_row['total'] ?? 0);
             <h1>📋 Task Management</h1>
         </div>
         <div>
-            <a href="add.php" class="btn">+ Add Task</a>
+            <button type="button" class="btn" id="openAddTask">+ Add Task</button>
         </div>
     </div>
     
     <hr>
 
     <?php if (!empty($message)): ?>
-        <div style="padding: 12px 20px; border-radius: 12px; margin-bottom: 20px; font-weight: 600; 
+        <div id="taskFlashMessage" data-auto-hide="<?php echo $message_type === 'success' ? '1' : '0'; ?>" style="padding: 12px 20px; border-radius: 12px; margin-bottom: 20px; font-weight: 600;
+            transition: opacity .3s ease, transform .3s ease, margin .3s ease, padding .3s ease;
             background: <?php echo $message_type == 'success' ? '#dcfce7' : '#fee2e2'; ?>; 
             color: <?php echo $message_type == 'success' ? '#166534' : '#991b1b'; ?>;
             border: 1px solid <?php echo $message_type == 'success' ? '#bbf7d0' : '#fecaca'; ?>;">
@@ -262,10 +468,11 @@ $total_users = intval($total_users_row['total'] ?? 0);
 
     <!-- Sticky Search Bar -->
     <div class="search-bar-container">
-        <form method="GET" action="index.php" style="width: 100%; display: flex;">
-            <input type="text" name="q" placeholder="Search tasks by title or description..." value="<?php echo htmlspecialchars($search); ?>">
+        <form method="GET" action="index.php" role="search" style="width: 100%; display: flex; gap: 8px;">
+            <input type="text" name="q" placeholder="Search by ID, title, description, status or assignee..." value="<?php echo htmlspecialchars($search); ?>">
+            <button type="submit" class="btn" style="padding: 6px 14px;">Search</button>
             <?php if ($search !== ""): ?>
-                <a href="index.php" class="btn btn-secondary" style="margin-left: 8px; padding: 6px 12px; font-size: 11px; border-radius: 8px;">Clear</a>
+                <a href="index.php" class="btn btn-secondary" style="padding: 6px 12px; font-size: 11px; border-radius: 8px;">Clear</a>
             <?php endif; ?>
         </form>
     </div>
@@ -320,7 +527,16 @@ $total_users = intval($total_users_row['total'] ?? 0);
                                 <td style="text-align: center;" onclick="event.stopPropagation();">
                                     <div style="display: flex; gap: 6px; justify-content: center;">
                                         <a href="view.php?id=<?php echo $task['id']; ?>" class="btn" style="padding: 4px 10px; font-size: 11px; border-radius: 6px; background: #0d283f;">View</a>
-                                        <a href="add.php?edit=<?php echo $task['id']; ?>" class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px; border-radius: 6px;">Edit</a>
+                                        <button type="button" 
+                                                class="btn btn-secondary edit-btn-inline" 
+                                                style="padding: 4px 10px; font-size: 11px; border-radius: 6px;"
+                                                data-id="<?php echo $task['id']; ?>"
+                                                data-title="<?php echo htmlspecialchars($task['title']); ?>"
+                                                data-description="<?php echo htmlspecialchars($task['description']); ?>"
+                                                data-assigned-user-id="<?php echo $task['assigned_user_id'] ?: ''; ?>"
+                                                data-status="<?php echo $task['status']; ?>">
+                                            Edit
+                                        </button>
                                         <form method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this task?');">
                                             <input type="hidden" name="id" value="<?php echo $task['id']; ?>">
                                             <button type="submit" name="delete_task" class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px; border-radius: 6px; background: rgba(239, 68, 68, 0.03); color: #dc2626; border: 1px solid rgba(239, 68, 68, 0.12);">Delete</button>
@@ -344,5 +560,126 @@ $total_users = intval($total_users_row['total'] ?? 0);
     </div>
 </div>
 
+<!-- Add/Edit Task Modal -->
+<div class="modal-backdrop" id="taskModal">
+    <div class="modal-card">
+        <div class="modal-head">
+            <h2 id="modalTitle"><?= $edit_task ? '✏️ Edit Task' : '📋 Add New Task' ?></h2>
+            <button class="modal-close" type="button" data-close>&times;</button>
+        </div>
+        <form class="ev-form" method="POST" id="taskForm" autocomplete="off">
+            <input type="hidden" name="task_id" id="modal_task_id" value="<?= $edit_task ? $edit_task['id'] : '0' ?>">
+            
+            <div class="span-2">
+                <label for="modal_title">Task Title *</label>
+                <input type="text" id="modal_title" name="title" placeholder="e.g. Call High-Priority Customer" 
+                       value="<?= $edit_task ? htmlspecialchars($edit_task['title']) : '' ?>" required>
+            </div>
+
+            <div class="span-4">
+                <label for="modal_description">Description *</label>
+                <textarea id="modal_description" name="description" rows="5" placeholder="Describe the task instructions here..." required><?= $edit_task ? htmlspecialchars($edit_task['description']) : '' ?></textarea>
+            </div>
+
+            <div>
+                <label for="modal_assigned_user_id">Assign To User</label>
+                <select id="modal_assigned_user_id" name="assigned_user_id">
+                    <option value="">All Users</option>
+                    <?php foreach ($users as $u): ?>
+                        <option value="<?php echo $u['id']; ?>" <?php echo ($edit_task && $edit_task['assigned_user_id'] == $u['id']) ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars($u['name']); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div>
+                <label for="modal_status">Status</label>
+                <select id="modal_status" name="status">
+                    <option value="Pending" <?php echo ($edit_task && $edit_task['status'] === 'Pending') ? 'selected' : ''; ?>>Pending</option>
+                    <option value="Completed" <?php echo ($edit_task && $edit_task['status'] === 'Completed') ? 'selected' : ''; ?>>Completed</option>
+                </select>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn btn-secondary" type="button" data-close>Cancel</button>
+                <button type="submit" name="save_task" class="btn" id="modalSubmitBtn"><?= $edit_task ? 'Update Task' : 'Save Task' ?></button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+(() => {
+    const modal = document.getElementById('taskModal');
+    const titleInput = document.getElementById('modal_title');
+    const descInput = document.getElementById('modal_description');
+    const assignedInput = document.getElementById('modal_assigned_user_id');
+    const statusInput = document.getElementById('modal_status');
+    const taskIdInput = document.getElementById('modal_task_id');
+    const modalTitle = document.getElementById('modalTitle');
+    const submitBtn = document.getElementById('modalSubmitBtn');
+
+    const open = () => {
+        modal.classList.add('open');
+        document.body.style.overflow = 'hidden';
+    };
+    const close = () => {
+        modal.classList.remove('open');
+        document.body.style.overflow = '';
+        if (new URLSearchParams(window.location.search).get('edit') || new URLSearchParams(window.location.search).get('action')) {
+            window.history.replaceState({}, document.title, 'index.php');
+        }
+    };
+
+    document.getElementById('openAddTask').addEventListener('click', () => {
+        modalTitle.innerHTML = '📋 Add New Task';
+        submitBtn.textContent = 'Save Task';
+        taskIdInput.value = '0';
+        titleInput.value = '';
+        descInput.value = '';
+        assignedInput.value = '';
+        statusInput.value = 'Pending';
+        open();
+    });
+
+    document.querySelectorAll('[data-close]').forEach(btn => btn.addEventListener('click', close));
+    modal.addEventListener('click', e => { if (e.target === modal) close(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+
+    // Inline edit click handler
+    document.querySelectorAll('.edit-btn-inline').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            modalTitle.innerHTML = '✏️ Edit Task';
+            submitBtn.textContent = 'Update Task';
+            taskIdInput.value = btn.dataset.id;
+            titleInput.value = btn.dataset.title;
+            descInput.value = btn.dataset.description;
+            assignedInput.value = btn.dataset.assignedUserId;
+            statusInput.value = btn.dataset.status;
+            open();
+        });
+    });
+
+    // Open automatically if PHP loaded edit_task (fallback URL navigation) or action=add
+    const initialEdit = <?php echo isset($edit_task) && $edit_task ? 'true' : 'false' ?>;
+    const isAddAction = new URLSearchParams(window.location.search).get('action') === 'add';
+    if (initialEdit || isAddAction) {
+        if (isAddAction) {
+            modalTitle.innerHTML = '📋 Add New Task';
+            submitBtn.textContent = 'Save Task';
+            taskIdInput.value = '0';
+            titleInput.value = '';
+            descInput.value = '';
+            assignedInput.value = '';
+            statusInput.value = 'Pending';
+        }
+        open();
+    }
+
+})();
+</script>
 </body>
 </html>

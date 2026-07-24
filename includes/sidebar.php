@@ -5,17 +5,22 @@ if (session_status() === PHP_SESSION_NONE) {
 
 $current_script = $_SERVER['SCRIPT_NAME'];
 $prefix = "";
-$is_admin = strpos($current_script, '/admin_page/') !== false;
-$is_user = strpos($current_script, '/user_page/') !== false;
+$base_url = "/";
+$is_admin = false;
+$is_user = false;
 
-if ($is_admin) {
-    $parts = explode('/admin_page/', $current_script);
+if (stripos($current_script, '/admin_page/') !== false) {
+    $is_admin = true;
+    $parts = preg_split('~/admin_page/~i', $current_script);
     $subpath = $parts[1];
+    $base_url = $parts[0] . "/";
     $depth = substr_count($subpath, '/');
     $prefix = str_repeat('../', $depth);
-} elseif ($is_user) {
-    $parts = explode('/user_page/', $current_script);
+} elseif (stripos($current_script, '/user_page/') !== false) {
+    $is_user = true;
+    $parts = preg_split('~/user_page/~i', $current_script);
     $subpath = $parts[1];
+    $base_url = $parts[0] . "/";
     $depth = substr_count($subpath, '/');
     $prefix = str_repeat('../', $depth);
 }
@@ -46,32 +51,39 @@ $chevron = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 
 $query_string = $_SERVER['QUERY_STRING'] ?? '';
 parse_str($query_string, $query_params);
 
-function check_url_active($item_url, $current_relative_path, $query_params) {
-    $parsed = parse_url($item_url);
-    $item_path = ltrim(str_replace('\\', '/', $parsed['path'] ?? ''), '/');
-    $item_query = $parsed['query'] ?? '';
+if (!function_exists('check_url_active')) {
+    function check_url_active($item_url, $current_relative_path, $query_params) {
+        $parsed = parse_url($item_url);
+        $item_path = ltrim(str_replace('\\', '/', $parsed['path'] ?? ''), '/');
+        $item_query = $parsed['query'] ?? '';
 
-    // Compare the complete role-relative path. Several menu destinations use
-    // the same filename (for example master/list.php, bookings/list.php and
-    // enquiry/list.php), so basename-only matching highlights the wrong menu.
-    if ($current_relative_path !== $item_path) {
-        return false;
-    }
+        // Handle active state for any page under the enquiry folder
+        if ($item_path === 'enquiry/list.php' && strpos($current_relative_path, 'enquiry/') === 0) {
+            return true;
+        }
 
-    if ($item_query !== '') {
-        parse_str($item_query, $item_q_params);
-        foreach ($item_q_params as $k => $v) {
-            if (($query_params[$k] ?? '') !== $v) {
+        // Compare the complete role-relative path. Several menu destinations use
+        // the same filename (for example master/list.php, bookings/list.php and
+        // enquiry/list.php), so basename-only matching highlights the wrong menu.
+        if ($current_relative_path !== $item_path) {
+            return false;
+        }
+
+        if ($item_query !== '') {
+            parse_str($item_query, $item_q_params);
+            foreach ($item_q_params as $k => $v) {
+                if (($query_params[$k] ?? '') !== $v) {
+                    return false;
+                }
+            }
+        } else {
+            // Fallback checks for filter query exclusions
+            if (!empty($query_params['customer_type']) || !empty($query_params['source']) || !empty($query_params['filter_source'])) {
                 return false;
             }
         }
-    } else {
-        // Fallback checks for filter query exclusions
-        if (!empty($query_params['customer_type']) || !empty($query_params['source']) || !empty($query_params['filter_source'])) {
-            return false;
-        }
+        return true;
     }
-    return true;
 }
 
 // Check route folders to keep dropdowns expanded
@@ -106,23 +118,14 @@ if ($is_admin) {
             'children' => [
                 ['text' => 'Bookings List', 'url' => 'bookings/list.php', 'icon' => 'bookings'],
                 ['text' => 'Add Booking', 'url' => 'bookings/add.php', 'icon' => 'add-booking'],
+                ['text' => 'Bulk Import', 'url' => 'bookings/import.php', 'icon' => 'add-booking'],
                 ['text' => 'Reports', 'url' => 'bookings/reports.php', 'icon' => 'reports']
             ]
         ],
-        [
-            'type' => 'dropdown',
-            'text' => 'Enquiry',
-            'icon' => 'enquiry',
-            'route_active' => $enquiry_route_active,
-            'children' => [
-                ['text' => 'All Enquiries', 'url' => 'enquiry/list.php', 'icon' => 'enquiry'],
-                ['text' => 'Email Enquiries', 'url' => 'enquiry/list.php?source=Email', 'icon' => 'email'],
-                ['text' => 'WhatsApp Enquiries', 'url' => 'enquiry/list.php?source=WhatsApp', 'icon' => 'enquiry']
-            ]
-        ],
+        ['type' => 'link', 'text' => 'Enquiry', 'url' => 'enquiry/list.php', 'icon' => 'enquiry'],
         ['type' => 'link', 'text' => 'Tasks', 'url' => 'tasks/index.php', 'icon' => 'tasks'],
         ['type' => 'link', 'text' => 'Activity', 'url' => 'admin/activity.php', 'icon' => 'activity'],
-        ['type' => 'link', 'text' => 'Logout', 'url' => '../login.php', 'icon' => 'logout', 'class' => 'logout']
+        ['type' => 'link', 'text' => 'Logout', 'url' => $base_url . 'login.php?logout=1', 'icon' => 'logout', 'class' => 'logout']
     ];
 } else {
     $menu = [
@@ -134,28 +137,19 @@ if ($is_admin) {
             'route_active' => $bookings_route_active,
             'children' => [
                 ['text' => 'My Bookings', 'url' => 'bookings/list.php', 'icon' => 'bookings'],
-                ['text' => 'Add Booking', 'url' => 'bookings/add.php', 'icon' => 'add-booking']
+                ['text' => 'Add Booking', 'url' => 'bookings/add.php', 'icon' => 'add-booking'],
+                ['text' => 'Bulk Import', 'url' => 'bookings/import.php', 'icon' => 'add-booking']
             ]
         ],
         ['type' => 'link', 'text' => 'Customers', 'url' => 'customers/list.php', 'icon' => 'customers'],
-        [
-            'type' => 'dropdown',
-            'text' => 'Enquiry',
-            'icon' => 'enquiry',
-            'route_active' => $enquiry_route_active,
-            'children' => [
-                ['text' => 'All Enquiries', 'url' => 'enquiry/list.php', 'icon' => 'enquiry'],
-                ['text' => 'Email Enquiries', 'url' => 'enquiry/list.php?filter_source=Email', 'icon' => 'email'],
-                ['text' => 'WhatsApp Enquiries', 'url' => 'enquiry/list.php?filter_source=WhatsApp', 'icon' => 'enquiry']
-            ]
-        ],
+        ['type' => 'link', 'text' => 'Enquiry', 'url' => 'enquiry/list.php', 'icon' => 'enquiry'],
         ['type' => 'link', 'text' => 'My Tasks', 'url' => 'tasks/index.php', 'icon' => 'tasks'],
-        ['type' => 'link', 'text' => 'Logout', 'url' => '../login.php', 'icon' => 'logout', 'class' => 'logout']
+        ['type' => 'link', 'text' => 'Logout', 'url' => $base_url . 'login.php?logout=1', 'icon' => 'logout', 'class' => 'logout']
     ];
 }
 ?>
 <div class="sidebar sidebar-modern locked">
-    <h2 class="logo"><span class="logo-icon">&#9992;</span><span class="logo-text"><?= htmlspecialchars(COMPANY_NAME) ?></span></h2>
+    <a class="logo" href="<?= $prefix ?>dashboard.php" aria-label="Go back to Dashboard" title="Go back to Dashboard"><span class="logo-icon">&#9992;</span><span class="logo-text"><?= htmlspecialchars(COMPANY_NAME) ?></span></a>
     <?php foreach ($menu as $item): ?>
         <?php if ($item['type'] === 'link'): ?>
             <?php
@@ -163,7 +157,7 @@ if ($is_admin) {
             $active_class = $active ? ' active' : '';
             $custom_class = isset($item['class']) ? ' ' . $item['class'] : '';
             ?>
-            <a href="<?= $prefix . $item['url'] ?>" class="nav-item<?= $active_class . $custom_class ?>">
+            <a href="<?= (strpos($item['url'], '/') === 0 ? '' : $prefix) . $item['url'] ?>" class="nav-item<?= $active_class . $custom_class ?>">
                 <span class="nav-icon"><?= $icons[$item['icon']] ?></span>
                 <span class="nav-text"><?= $item['text'] ?></span>
             </a>
@@ -178,7 +172,7 @@ if ($is_admin) {
                 }
                 $child_active_class = $child_active ? ' active' : '';
                 $children_html .= '
-                    <a href="' . $prefix . $child['url'] . '" class="nav-subitem' . $child_active_class . '">
+                    <a href="' . (strpos($child['url'], '/') === 0 ? '' : $prefix) . $child['url'] . '" class="nav-subitem' . $child_active_class . '">
                         <span class="nav-icon">' . $icons[$child['icon']] . '</span>
                         <span class="nav-text">' . $child['text'] . '</span>
                     </a>';
@@ -200,3 +194,64 @@ if ($is_admin) {
         <?php endif; ?>
     <?php endforeach; ?>
 </div>
+<script>
+(() => {
+    if (window.__crmSuccessAutoHideInitialized) return;
+    window.__crmSuccessAutoHideInitialized = true;
+
+    const initializeSuccessAutoHide = () => {
+        const schedule = element => {
+            if (!(element instanceof HTMLElement) || element.dataset.autoHideScheduled === '1') return;
+
+            const text = element.textContent.trim();
+            const explicitSuccess = element.matches(
+                '[data-auto-hide="1"], .booking-alert.is-success, .profile-alert.is-success, .alert-success, .alert.is-success'
+            );
+            const simpleSuccessMessage =
+                ['DIV', 'P', 'SECTION'].includes(element.tagName) &&
+                element.children.length <= 3 &&
+                text.length > 0 &&
+                text.length <= 300 &&
+                /\bsuccess(?:ful(?:ly)?)?\b/i.test(text);
+            const errorOrWarning =
+                element.matches('[data-auto-hide="0"], .is-error, .alert-error, .error, .warning, .is-warning') ||
+                /\b(error|failed|warning|unable|could not)\b/i.test(text);
+
+            if ((!explicitSuccess && !simpleSuccessMessage) || errorOrWarning) return;
+
+            element.dataset.autoHideScheduled = '1';
+            element.style.transition = 'opacity .3s ease, transform .3s ease';
+            window.setTimeout(() => {
+                if (!element.isConnected) return;
+                element.style.opacity = '0';
+                element.style.transform = 'translateY(-6px)';
+                window.setTimeout(() => element.remove(), 300);
+            }, 5000);
+        };
+
+        const scan = root => {
+            if (!(root instanceof Element || root instanceof Document)) return;
+            if (root instanceof Element) schedule(root);
+            root.querySelectorAll(
+                '[data-auto-hide], [role="alert"], .booking-alert, .profile-alert, .alert-success, .alert, div, p, section'
+            ).forEach(schedule);
+        };
+
+        scan(document);
+        const observer = new MutationObserver(mutations => {
+            mutations.forEach(mutation => {
+                mutation.addedNodes.forEach(node => {
+                    if (node instanceof Element) scan(node);
+                });
+            });
+        });
+        observer.observe(document.body, {childList: true, subtree: true});
+    };
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initializeSuccessAutoHide, {once: true});
+    } else {
+        initializeSuccessAutoHide();
+    }
+})();
+</script>

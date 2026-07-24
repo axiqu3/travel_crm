@@ -327,14 +327,6 @@ $suppliers_res = mysqli_query($db, "
 <?php include(__DIR__ . "/../../includes/sidebar.php"); ?>
 
 <div class="main">
-    <div class="header">
-        <input class="search" placeholder="Search...">
-        <span class="notify">🔔</span>
-        <a href="../profile/index.php" class="profile-widget">
-            <span>👤 Profile</span>
-        </a>
-    </div>
-
     <div class="dashboard-title-row">
         <h1>Export Reports Suite</h1>
         <a href="list.php" class="btn btn-secondary">Back to Bookings</a>

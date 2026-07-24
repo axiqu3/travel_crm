@@ -1,7 +1,7 @@
 <?php
 require_once(__DIR__ . "/../../includes/db.php");
 require_once(__DIR__ . "/../../includes/auth.php");
-check_auth('admin');
+check_auth();
 
 $task_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 if ($task_id <= 0) {

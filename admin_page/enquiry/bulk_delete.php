@@ -1,34 +1,54 @@
 <?php
-require_once(__DIR__ . "/../../includes/db.php");
-require_once(__DIR__ . "/../../includes/auth.php");
+require_once __DIR__ . '/../../includes/db.php';
+require_once __DIR__ . '/../../includes/auth.php';
+require_once __DIR__ . '/../../includes/enquiry_workflow.php';
 check_auth('admin');
 
-header('Content-Type: application/json');
+header('Content-Type: application/json; charset=utf-8');
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $ids = isset($_POST['ids']) ? $_POST['ids'] : [];
-    if (!is_array($ids) || empty($ids)) {
-        echo json_encode(['success' => false, 'message' => 'No items selected.']);
-        exit;
-    }
-    
-    // Clean and validate IDs
-    $clean_ids = array_map('intval', $ids);
-    $ids_str = implode(',', $clean_ids);
-    
-    // Execute deletion (Cascading deletes related messages via DB constraint)
-    $query = "DELETE FROM enquiries WHERE id IN ($ids_str)";
-    if (mysqli_query($db, $query)) {
-        // Log activity
-        $user_for_log = $_SESSION['user_name'] ?? 'System';
-        $count = count($clean_ids);
-        mysqli_query($db, "INSERT INTO activity_log (username, action, module, activity_date) VALUES ('$user_for_log', 'Bulk Deleted $count Enquiries', 'Enquiry', NOW())");
-        
-        echo json_encode(['success' => true, 'message' => "$count enquiries deleted successfully."]);
-    } else {
-        echo json_encode(['success' => false, 'message' => 'Database error: ' . mysqli_error($db)]);
-    }
-    exit;
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    enquiry_json(false, 'Invalid request method.', [], 405);
 }
-echo json_encode(['success' => false, 'message' => 'Invalid request method.']);
-?>
+
+if (!enquiry_validate_csrf($_POST['csrf_token'] ?? '')) {
+    enquiry_json(false, 'Your session token expired. Refresh the page and try again.', [], 419);
+}
+
+$submitted_ids = $_POST['ids'] ?? [];
+if (!is_array($submitted_ids)) {
+    enquiry_json(false, 'No enquiries were selected.', [], 422);
+}
+
+$ids = array_values(array_unique(array_filter(
+    array_map('intval', $submitted_ids),
+    static fn ($id) => $id > 0
+)));
+
+if (!$ids) {
+    enquiry_json(false, 'Select at least one enquiry to delete.', [], 422);
+}
+if (count($ids) > 500) {
+    enquiry_json(false, 'You can delete a maximum of 500 enquiries at one time.', [], 422);
+}
+
+$id_list = implode(',', $ids);
+$manual_scope = enquiry_manual_source_sql('');
+$delete_sql = "DELETE FROM enquiries WHERE id IN ($id_list) AND $manual_scope";
+
+mysqli_begin_transaction($db);
+if (!mysqli_query($db, $delete_sql)) {
+    mysqli_rollback($db);
+    enquiry_json(false, 'The selected enquiries could not be deleted.', [], 500);
+}
+
+$deleted_count = mysqli_affected_rows($db);
+if ($deleted_count > 0) {
+    enquiry_log($db, "Bulk deleted $deleted_count manual enquiries");
+}
+mysqli_commit($db);
+
+enquiry_json(
+    true,
+    $deleted_count === 1 ? '1 enquiry deleted.' : "$deleted_count enquiries deleted.",
+    ['deleted_count' => $deleted_count]
+);

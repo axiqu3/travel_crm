@@ -1,66 +1,96 @@
 <?php
-require_once(__DIR__ . "/../../includes/db.php");
-require_once(__DIR__ . "/../../includes/auth.php");
+require_once(__DIR__ . '/../../includes/db.php');
+require_once(__DIR__ . '/../../includes/auth.php');
+require_once(__DIR__ . '/../../includes/booking_export.php');
+
 check_auth();
 
-// Set headers for download
-header('Content-Type: text/csv; charset=utf-8');
-header('Content-Disposition: attachment; filename=my_bookings_export_' . date('Y-m-d') . '.csv');
-
-// Prepend UTF-8 BOM for Excel compatibility on Windows
-echo "\xEF\xBB\xBF";
-
-$output = fopen('php://output', 'w');
-
-// Output column headers
-fputcsv($output, [
-    'ID', 'Serial No', 'Booking Date', 'Passenger Name', 'Customer/Agency Name', 
-    'From City', 'To City', 'Departure Date', 'Departure Time', 
-    'Arrival Date', 'Arrival Time', 'PNR', 'Ticket Number', 
-    'Flight Number', 'Airline Name', 'Flight Class', 'Terminal', 
-    'Seat Number', 'Baggage', 'Booking Reference', 'Fare Basis', 
-    'Service Type', 'Supplier Name', 'Buying Cost', 'Selling Cost', 
-    'Profit', 'Payment Method', 'Status'
-]);
-
-// Fetch bookings (filtered to show only the user's bookings)
-$user_name = mysqli_real_escape_string($db, $_SESSION['user_name'] ?? '');
-$query = "SELECT * FROM bookings WHERE assigned_user = '$user_name' OR created_by = '$user_name' ORDER BY id DESC";
-$result = mysqli_query($db, $query);
-
-while ($row = mysqli_fetch_assoc($result)) {
-    fputcsv($output, [
-        $row['id'], 
-        $row['serial_no'], 
-        $row['booking_date'], 
-        $row['passenger_name'], 
-        $row['customer_name'],
-        $row['from_city'], 
-        $row['to_city'], 
-        $row['departure_date'], 
-        $row['departure_time'],
-        $row['arrival_date'], 
-        $row['arrival_time'], 
-        $row['pnr'], 
-        $row['ticket_number'],
-        $row['flight_number'], 
-        $row['airline_name'], 
-        $row['flight_class'], 
-        $row['terminal'],
-        $row['seat_number'], 
-        $row['baggage'], 
-        $row['booking_ref'], 
-        $row['fare_basis'],
-        $row['service_type'], 
-        $row['supplier_name'], 
-        $row['buying_cost'], 
-        $row['selling_cost'],
-        $row['profit'], 
-        $row['payment_method'], 
-        $row['status']
-    ]);
+$allowedServices = ['all', 'flight', 'hotel', 'visa', 'passport', 'insurance', 'package', 'other'];
+$selectedService = strtolower(trim((string) ($_GET['export_service'] ?? 'all')));
+if (!in_array($selectedService, $allowedServices, true)) {
+    http_response_code(400);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['message' => 'Please select a valid service type.']);
+    exit;
 }
 
-fclose($output);
+$isValidDate = static function ($value) {
+    if ($value === '') return true;
+    $date = DateTime::createFromFormat('!Y-m-d', $value);
+    return $date && $date->format('Y-m-d') === $value;
+};
+
+$startDate = trim((string) ($_GET['start_date'] ?? ''));
+$endDate = trim((string) ($_GET['end_date'] ?? ''));
+$customerType = trim((string) ($_GET['customer_type'] ?? ''));
+$userName = (string) ($_SESSION['user_name'] ?? '');
+
+if (!$isValidDate($startDate) || !$isValidDate($endDate) || strlen($customerType) > 100 || $userName === '') {
+    http_response_code(400);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['message' => 'One or more export filters are invalid.']);
+    exit;
+}
+
+$where = ['b.created_by = ?'];
+$params = [$userName];
+if ($startDate !== '') {
+    $where[] = 'b.booking_date >= ?';
+    $params[] = $startDate;
+}
+if ($endDate !== '') {
+    $where[] = 'b.booking_date <= ?';
+    $params[] = $endDate;
+}
+if ($customerType !== '') {
+    $where[] = 'b.customer_type = ?';
+    $params[] = $customerType;
+}
+if ($selectedService !== 'all') {
+    $where[] = booking_export_service_case_sql('b') . ' = ?';
+    $params[] = $selectedService;
+}
+
+$sql = "SELECT b.*,
+        COALESCE(NULLIF(cm.mobile, ''), NULLIF(cmn.mobile, ''), NULLIF(c.mobile, ''), '') AS customer_phone,
+        COALESCE(NULLIF(cm.email, ''), NULLIF(cmn.email, ''), NULLIF(c.email, ''), '') AS customer_email
+    FROM bookings b
+    LEFT JOIN customer_master cm ON cm.id = b.customer_master_id
+    LEFT JOIN customer_master cmn ON cmn.id = (
+        SELECT MAX(cm2.id) FROM customer_master cm2 WHERE cm2.name = b.customer_name
+    )
+    LEFT JOIN customers c ON c.id = (
+        SELECT MAX(c2.id) FROM customers c2 WHERE c2.name = b.customer_name
+    )
+    WHERE " . implode(' AND ', $where) . '
+    ORDER BY CAST(b.serial_no AS UNSIGNED) DESC, b.id DESC';
+
+$statement = mysqli_prepare($db, $sql);
+if (!$statement || !mysqli_stmt_execute($statement, $params)) {
+    http_response_code(500);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['message' => 'The booking export could not be generated.']);
+    exit;
+}
+
+$result = mysqli_stmt_get_result($statement);
+$bookings = $result ? mysqli_fetch_all($result, MYSQLI_ASSOC) : [];
+mysqli_stmt_close($statement);
+
+if (!$bookings) {
+    http_response_code(404);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['message' => 'No matching bookings were found for this export.']);
+    exit;
+}
+
+$filename = 'bookings_' . $selectedService . '_' . date('Y-m-d') . '.xlsx';
+$workbook = booking_export_xlsx(booking_export_columns($selectedService), $bookings);
+
+header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+header('Content-Disposition: attachment; filename="' . $filename . '"');
+header('Content-Length: ' . strlen($workbook));
+header('Cache-Control: no-store, no-cache, must-revalidate');
+header('X-Content-Type-Options: nosniff');
+echo $workbook;
 exit;
-?>

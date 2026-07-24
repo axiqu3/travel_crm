@@ -26,11 +26,28 @@ CREATE TABLE IF NOT EXISTS enquiries (
   subject VARCHAR(255) DEFAULT '',
   description TEXT,
   source VARCHAR(100) DEFAULT 'Direct',
+  service_type VARCHAR(50) DEFAULT NULL,
+  from_location VARCHAR(150) DEFAULT NULL,
+  to_location VARCHAR(150) DEFAULT NULL,
+  travel_date DATE DEFAULT NULL,
+  passenger_count INT NOT NULL DEFAULT 1,
+  priority VARCHAR(20) NOT NULL DEFAULT 'Medium',
+  next_follow_up_at DATETIME DEFAULT NULL,
+  confirmed_at DATETIME DEFAULT NULL,
+  final_service_date DATE DEFAULT NULL,
+  final_selling_amount DECIMAL(12,2) DEFAULT NULL,
+  confirmation_note TEXT DEFAULT NULL,
+  booking_id INT DEFAULT NULL,
   status VARCHAR(50) DEFAULT 'New',
   assigned_user VARCHAR(255) DEFAULT '',
   created_by VARCHAR(255) DEFAULT '',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_enquiries_source (source),
+  INDEX idx_enquiries_status (status),
+  INDEX idx_enquiries_next_follow_up (next_follow_up_at),
+  INDEX idx_enquiries_assigned_user (assigned_user),
+  INDEX idx_enquiries_booking_id (booking_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Table structure for customers
@@ -47,6 +64,7 @@ CREATE TABLE IF NOT EXISTS customers (
 -- Table structure for bookings
 CREATE TABLE IF NOT EXISTS bookings (
   id INT AUTO_INCREMENT PRIMARY KEY,
+  enquiry_id INT DEFAULT NULL,
   serial_no VARCHAR(100) DEFAULT '',
   booking_date DATE DEFAULT NULL,
   passenger_name VARCHAR(255) DEFAULT '',
@@ -80,7 +98,8 @@ CREATE TABLE IF NOT EXISTS bookings (
   ticket_path VARCHAR(255) DEFAULT NULL,
   created_by VARCHAR(255) DEFAULT '',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_bookings_enquiry_id (enquiry_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Table structure for booking_attachments
@@ -122,5 +141,22 @@ CREATE TABLE IF NOT EXISTS enquiry_messages (
   sent_by VARCHAR(255) DEFAULT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   INDEX(mobile),
+  FOREIGN KEY (enquiry_id) REFERENCES enquiries(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Follow-up history for manual enquiries
+CREATE TABLE IF NOT EXISTS enquiry_follow_ups (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  enquiry_id INT NOT NULL,
+  contacted_at DATETIME NOT NULL,
+  contact_method VARCHAR(30) NOT NULL,
+  discussion_note TEXT NOT NULL,
+  quoted_amount DECIMAL(12,2) DEFAULT NULL,
+  next_follow_up_at DATETIME DEFAULT NULL,
+  result VARCHAR(50) NOT NULL,
+  created_by VARCHAR(255) NOT NULL DEFAULT '',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_enquiry_follow_ups_enquiry_id (enquiry_id),
+  INDEX idx_enquiry_follow_ups_next_date (next_follow_up_at),
   FOREIGN KEY (enquiry_id) REFERENCES enquiries(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

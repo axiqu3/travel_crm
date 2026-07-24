@@ -45,6 +45,29 @@ function ensure_column_exists($db, $table, $column, $definition) {
     return mysqli_query($db, "ALTER TABLE `$table` ADD COLUMN `$column` $definition");
 }
 
+function ensure_index_exists($db, $table, $index_name, $definition) {
+    $table = preg_replace('/[^a-zA-Z0-9_]/', '', $table);
+    $index_name = preg_replace('/[^a-zA-Z0-9_]/', '', $index_name);
+
+    if ($table === '' || $index_name === '') {
+        return false;
+    }
+
+    $result = mysqli_query($db, "SHOW INDEX FROM `$table` WHERE Key_name = '$index_name'");
+    if ($result && mysqli_num_rows($result) > 0) {
+        return true;
+    }
+
+    return mysqli_query($db, "ALTER TABLE `$table` ADD INDEX `$index_name` ($definition)");
+}
+
+
+// Auto-migrate schema on demand or if not yet initialized
+$flag_file = __DIR__ . '/db_initialized.flag';
+if (file_exists($flag_file) && !isset($_GET['run_migrations'])) {
+    goto skip_migrations;
+}
+
 // Auto-create enquiries table if not exists
 mysqli_query($db, "CREATE TABLE IF NOT EXISTS enquiries (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -76,8 +99,25 @@ mysqli_query($db, "CREATE TABLE IF NOT EXISTS customer_master (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
 
+ensure_index_exists($db, 'customer_master', 'idx_customer_master_mobile', 'mobile');
+ensure_index_exists($db, 'customer_master', 'idx_customer_master_email', 'email');
+ensure_index_exists($db, 'customers', 'idx_customers_mobile', 'mobile');
+ensure_index_exists($db, 'customers', 'idx_customers_email', 'email');
+
 ensure_column_exists($db, 'enquiries', 'notified', 'TINYINT DEFAULT 0');
 ensure_column_exists($db, 'enquiries', 'updated_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP');
+ensure_column_exists($db, 'enquiries', 'service_type', 'VARCHAR(50) NULL');
+ensure_column_exists($db, 'enquiries', 'from_location', 'VARCHAR(150) NULL');
+ensure_column_exists($db, 'enquiries', 'to_location', 'VARCHAR(150) NULL');
+ensure_column_exists($db, 'enquiries', 'travel_date', 'DATE NULL');
+ensure_column_exists($db, 'enquiries', 'passenger_count', "INT NOT NULL DEFAULT 1");
+ensure_column_exists($db, 'enquiries', 'priority', "VARCHAR(20) NOT NULL DEFAULT 'Medium'");
+ensure_column_exists($db, 'enquiries', 'next_follow_up_at', 'DATETIME NULL');
+ensure_column_exists($db, 'enquiries', 'confirmed_at', 'DATETIME NULL');
+ensure_column_exists($db, 'enquiries', 'final_service_date', 'DATE NULL');
+ensure_column_exists($db, 'enquiries', 'final_selling_amount', 'DECIMAL(12,2) NULL');
+ensure_column_exists($db, 'enquiries', 'confirmation_note', 'TEXT NULL');
+ensure_column_exists($db, 'enquiries', 'booking_id', 'INT NULL');
 ensure_column_exists($db, 'bookings', 'customer_master_id', 'INT NULL');
 ensure_column_exists($db, 'customer_master', 'status', "VARCHAR(50) DEFAULT 'Active'");
 ensure_column_exists($db, 'enquiry_messages', 'media_path', 'VARCHAR(255) NULL DEFAULT NULL');
@@ -87,6 +127,14 @@ ensure_column_exists($db, 'enquiry_messages', 'media_duration', 'INT DEFAULT 0')
 ensure_column_exists($db, 'users', 'created_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP');
 ensure_column_exists($db, 'users', 'updated_at', 'TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP');
 ensure_column_exists($db, 'users', 'updated_by', "VARCHAR(255) DEFAULT ''");
+ensure_column_exists($db, 'users', 'phone', "VARCHAR(50) DEFAULT NULL");
+ensure_column_exists($db, 'users', 'address', "TEXT DEFAULT NULL");
+ensure_column_exists($db, 'users', 'city', "VARCHAR(100) DEFAULT NULL");
+ensure_column_exists($db, 'users', 'state', "VARCHAR(100) DEFAULT NULL");
+ensure_column_exists($db, 'users', 'country', "VARCHAR(100) DEFAULT NULL");
+ensure_column_exists($db, 'users', 'zip_code', "VARCHAR(20) DEFAULT NULL");
+ensure_column_exists($db, 'users', 'dob', "DATE DEFAULT NULL");
+ensure_column_exists($db, 'users', 'profile_completed', "TINYINT(1) DEFAULT 0");
 
 // WhatsApp URL generator helper
 function get_whatsapp_url($mobile, $message = '') {
@@ -178,6 +226,16 @@ ensure_column_exists($db, 'bookings', 'hotel_check_out', "DATE NULL");
 ensure_column_exists($db, 'bookings', 'hotel_room_type', "VARCHAR(100) NULL");
 ensure_column_exists($db, 'bookings', 'hotel_rooms_count', "INT NULL");
 ensure_column_exists($db, 'bookings', 'hotel_confirmation_no', "VARCHAR(100) NULL");
+ensure_column_exists($db, 'bookings', 'document_type', "VARCHAR(30) DEFAULT 'ticket'");
+ensure_column_exists($db, 'bookings', 'hotel_country', "VARCHAR(100) NULL");
+ensure_column_exists($db, 'bookings', 'hotel_city', "VARCHAR(100) NULL");
+ensure_column_exists($db, 'bookings', 'hotel_address', "VARCHAR(255) NULL");
+ensure_column_exists($db, 'bookings', 'hotel_nights_count', "INT NULL");
+ensure_column_exists($db, 'bookings', 'hotel_meal_plan', "VARCHAR(100) NULL");
+ensure_column_exists($db, 'bookings', 'hotel_adults_count', "INT NULL");
+ensure_column_exists($db, 'bookings', 'hotel_children_count', "INT NULL");
+ensure_column_exists($db, 'bookings', 'hotel_guest_names', "TEXT NULL");
+ensure_column_exists($db, 'bookings', 'hotel_booking_details', "TEXT NULL");
 ensure_column_exists($db, 'bookings', 'visa_type', "VARCHAR(100) NULL");
 ensure_column_exists($db, 'bookings', 'visa_country', "VARCHAR(100) NULL");
 ensure_column_exists($db, 'bookings', 'visa_app_no', "VARCHAR(100) NULL");
@@ -185,23 +243,99 @@ ensure_column_exists($db, 'bookings', 'visa_submission_date', "DATE NULL");
 ensure_column_exists($db, 'bookings', 'visa_delivery_date', "DATE NULL");
 ensure_column_exists($db, 'bookings', 'visa_valid_from', "DATE NULL");
 ensure_column_exists($db, 'bookings', 'visa_valid_to', "DATE NULL");
+ensure_column_exists($db, 'bookings', 'visa_entry_type', "VARCHAR(50) NULL");
+ensure_column_exists($db, 'bookings', 'visa_duration_days', "INT NULL");
+ensure_column_exists($db, 'bookings', 'visa_issue_place', "VARCHAR(100) NULL");
+ensure_column_exists($db, 'bookings', 'visa_uid_no', "VARCHAR(100) NULL");
+ensure_column_exists($db, 'bookings', 'visa_full_name', "VARCHAR(255) NULL");
+ensure_column_exists($db, 'bookings', 'visa_nationality', "VARCHAR(100) NULL");
+ensure_column_exists($db, 'bookings', 'visa_place_of_birth', "VARCHAR(150) NULL");
+ensure_column_exists($db, 'bookings', 'visa_date_of_birth', "DATE NULL");
+ensure_column_exists($db, 'bookings', 'visa_passport_type', "VARCHAR(50) NULL");
+ensure_column_exists($db, 'bookings', 'visa_passport_no', "VARCHAR(100) NULL");
+ensure_column_exists($db, 'bookings', 'visa_profession', "VARCHAR(150) NULL");
+ensure_column_exists($db, 'bookings', 'other_service_name', "VARCHAR(150) NULL");
+ensure_column_exists($db, 'bookings', 'other_reference_no', "VARCHAR(100) NULL");
+ensure_column_exists($db, 'bookings', 'other_service_date', "DATE NULL");
+ensure_column_exists($db, 'bookings', 'other_end_date', "DATE NULL");
+ensure_column_exists($db, 'bookings', 'other_country', "VARCHAR(100) NULL");
+ensure_column_exists($db, 'bookings', 'other_city', "VARCHAR(100) NULL");
+ensure_column_exists($db, 'bookings', 'other_from', "VARCHAR(150) NULL");
+ensure_column_exists($db, 'bookings', 'other_to', "VARCHAR(150) NULL");
+ensure_column_exists($db, 'bookings', 'other_details', "TEXT NULL");
+ensure_column_exists($db, 'bookings', 'passport_number', "VARCHAR(100) NULL");
+ensure_column_exists($db, 'bookings', 'passport_type', "VARCHAR(50) NULL");
+ensure_column_exists($db, 'bookings', 'passport_issuing_country', "VARCHAR(100) NULL");
+ensure_column_exists($db, 'bookings', 'passport_country_code', "VARCHAR(10) NULL");
+ensure_column_exists($db, 'bookings', 'passport_full_name', "VARCHAR(255) NULL");
+ensure_column_exists($db, 'bookings', 'passport_surname', "VARCHAR(150) NULL");
+ensure_column_exists($db, 'bookings', 'passport_given_names', "VARCHAR(255) NULL");
+ensure_column_exists($db, 'bookings', 'passport_nationality', "VARCHAR(100) NULL");
+ensure_column_exists($db, 'bookings', 'passport_gender', "VARCHAR(20) NULL");
+ensure_column_exists($db, 'bookings', 'passport_date_of_birth', "DATE NULL");
+ensure_column_exists($db, 'bookings', 'passport_place_of_birth', "VARCHAR(150) NULL");
+ensure_column_exists($db, 'bookings', 'passport_date_of_issue', "DATE NULL");
+ensure_column_exists($db, 'bookings', 'passport_date_of_expiry', "DATE NULL");
+ensure_column_exists($db, 'bookings', 'passport_place_of_issue', "VARCHAR(150) NULL");
+ensure_column_exists($db, 'bookings', 'passport_authority', "VARCHAR(150) NULL");
+ensure_column_exists($db, 'bookings', 'passport_mrz_line1', "VARCHAR(100) NULL");
+ensure_column_exists($db, 'bookings', 'passport_mrz_line2', "VARCHAR(100) NULL");
 ensure_column_exists($db, 'bookings', 'insurance_provider', "VARCHAR(255) NULL");
 ensure_column_exists($db, 'bookings', 'insurance_policy_no', "VARCHAR(100) NULL");
+ensure_column_exists($db, 'bookings', 'insurance_insured_name', "VARCHAR(255) NULL");
 ensure_column_exists($db, 'bookings', 'insurance_coverage_type', "VARCHAR(100) NULL");
+ensure_column_exists($db, 'bookings', 'insurance_passport_no', "VARCHAR(100) NULL");
 ensure_column_exists($db, 'bookings', 'insurance_destination', "VARCHAR(255) NULL");
+ensure_column_exists($db, 'bookings', 'insurance_issue_date', "DATE NULL");
 ensure_column_exists($db, 'bookings', 'insurance_start_date', "DATE NULL");
 ensure_column_exists($db, 'bookings', 'insurance_end_date', "DATE NULL");
+ensure_column_exists($db, 'bookings', 'insurance_days', "INT NULL");
 ensure_column_exists($db, 'bookings', 'insurance_sum_insured', "DECIMAL(12,2) NULL");
+ensure_column_exists($db, 'bookings', 'insurance_premium_amount', "DECIMAL(12,2) NULL");
+ensure_column_exists($db, 'bookings', 'insurance_emergency_no', "VARCHAR(100) NULL");
+ensure_column_exists($db, 'bookings', 'insurance_certificate_no', "VARCHAR(100) NULL");
+ensure_column_exists($db, 'bookings', 'insurance_coverage_details', "TEXT NULL");
+ensure_column_exists($db, 'bookings', 'insurance_remarks', "TEXT NULL");
+ensure_column_exists($db, 'bookings', 'package_voucher_no', "VARCHAR(100) NULL");
 ensure_column_exists($db, 'bookings', 'package_name', "VARCHAR(255) NULL");
 ensure_column_exists($db, 'bookings', 'package_destinations', "VARCHAR(255) NULL");
+ensure_column_exists($db, 'bookings', 'package_country', "VARCHAR(100) NULL");
+ensure_column_exists($db, 'bookings', 'package_guest_names', "TEXT NULL");
 ensure_column_exists($db, 'bookings', 'package_type', "VARCHAR(100) NULL");
 ensure_column_exists($db, 'bookings', 'package_start_date', "DATE NULL");
 ensure_column_exists($db, 'bookings', 'package_end_date', "DATE NULL");
+ensure_column_exists($db, 'bookings', 'package_days_count', "INT NULL");
+ensure_column_exists($db, 'bookings', 'package_nights_count', "INT NULL");
 ensure_column_exists($db, 'bookings', 'package_adults_count', "INT NULL");
 ensure_column_exists($db, 'bookings', 'package_children_count', "INT NULL");
-ensure_column_exists($db, 'bookings', 'package_accommodation', "VARCHAR(50) NULL");
+ensure_column_exists($db, 'bookings', 'package_infants_count', "INT NULL");
+ensure_column_exists($db, 'bookings', 'package_accommodation', "VARCHAR(255) NULL");
+ensure_column_exists($db, 'bookings', 'package_room_type', "VARCHAR(100) NULL");
 ensure_column_exists($db, 'bookings', 'package_meals', "VARCHAR(100) NULL");
+ensure_column_exists($db, 'bookings', 'package_transportation', "VARCHAR(255) NULL");
+ensure_column_exists($db, 'bookings', 'package_pickup_details', "TEXT NULL");
+ensure_column_exists($db, 'bookings', 'package_dropoff_details', "TEXT NULL");
+ensure_column_exists($db, 'bookings', 'package_confirmation_no', "VARCHAR(100) NULL");
 ensure_column_exists($db, 'bookings', 'package_itinerary', "TEXT NULL");
+ensure_column_exists($db, 'bookings', 'package_inclusions', "TEXT NULL");
+ensure_column_exists($db, 'bookings', 'package_exclusions', "TEXT NULL");
+ensure_column_exists($db, 'bookings', 'package_details', "TEXT NULL");
+ensure_column_exists($db, 'bookings', 'package_terms', "TEXT NULL");
+
+// Auto-create import_history table if not exists
+mysqli_query($db, "CREATE TABLE IF NOT EXISTS import_history (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    import_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    username VARCHAR(255) NOT NULL,
+    file_name VARCHAR(255) NOT NULL,
+    file_type VARCHAR(100) NOT NULL,
+    total_records INT DEFAULT 0,
+    imported_records INT DEFAULT 0,
+    failed_records INT DEFAULT 0,
+    duplicate_records INT DEFAULT 0,
+    processing_time_ms INT DEFAULT 0,
+    details LONGTEXT DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
 
 // System Settings initialization
 mysqli_query($db, "CREATE TABLE IF NOT EXISTS settings (
@@ -211,6 +345,34 @@ mysqli_query($db, "CREATE TABLE IF NOT EXISTS settings (
 
 mysqli_query($db, "INSERT IGNORE INTO settings (`key`, `value`) VALUES ('company_name', 'Travel CRM')");
 
+// Add performance indexes
+ensure_index_exists($db, 'bookings', 'idx_bookings_booking_date', 'booking_date');
+ensure_index_exists($db, 'bookings', 'idx_bookings_customer_master_id', 'customer_master_id');
+ensure_index_exists($db, 'bookings', 'idx_bookings_customer_name', 'customer_name');
+ensure_index_exists($db, 'bookings', 'idx_bookings_assigned_user', 'assigned_user');
+ensure_index_exists($db, 'bookings', 'idx_bookings_created_by', 'created_by');
+ensure_index_exists($db, 'bookings', 'idx_bookings_customer_type', 'customer_type');
+ensure_index_exists($db, 'bookings', 'idx_bookings_service_type', 'service_type');
+ensure_index_exists($db, 'bookings', 'idx_bookings_status', 'status');
+ensure_index_exists($db, 'customer_master', 'idx_customer_master_name', 'name');
+ensure_index_exists($db, 'customer_master', 'idx_customer_master_status', 'status');
+ensure_index_exists($db, 'customer_master', 'idx_customer_master_customer_type', 'customer_type');
+ensure_index_exists($db, 'enquiries', 'idx_enquiries_created_at', 'created_at');
+ensure_index_exists($db, 'enquiries', 'idx_enquiries_updated_at', 'updated_at');
+ensure_index_exists($db, 'enquiries', 'idx_enquiries_service_type', 'service_type');
+ensure_index_exists($db, 'enquiries', 'idx_enquiries_priority', 'priority');
+ensure_index_exists($db, 'tasks', 'idx_tasks_assigned_user_id', 'assigned_user_id');
+ensure_index_exists($db, 'tasks', 'idx_tasks_status', 'status');
+
+// Create flag file to mark initialization complete
+@file_put_contents($flag_file, date('Y-m-d H:i:s'));
+
+skip_migrations:
+
+// This lightweight profile field must also be ensured for installations that
+// already have the migration flag from an earlier version.
+ensure_column_exists($db, 'users', 'profile_image', "VARCHAR(255) DEFAULT NULL");
+
 $settings = [];
 $settings_res = mysqli_query($db, "SELECT * FROM settings");
 if ($settings_res) {
@@ -219,5 +381,3 @@ if ($settings_res) {
     }
 }
 define('COMPANY_NAME', $settings['company_name'] ?? 'Travel CRM');
-?>
-

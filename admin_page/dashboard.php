@@ -51,12 +51,30 @@ if ($pipeline_result) {
 $pipeline_max = max(1, ...array_values($pipeline_counts));
 
 $monthly_trend = [];
+$trend_data = [];
+$start_month = date('Y-m-01', strtotime("-5 months"));
+$end_month = date('Y-m-t');
+
+$trend_sql = "
+    SELECT 
+        DATE_FORMAT(booking_date, '%Y-%m') AS month_key,
+        COALESCE(SUM(profit), 0) AS profit,
+        COUNT(*) AS bookings 
+    FROM bookings 
+    WHERE booking_date BETWEEN '$start_month' AND '$end_month'
+    GROUP BY month_key
+";
+$trend_res = mysqli_query($db, $trend_sql);
+if ($trend_res) {
+    while ($row = mysqli_fetch_assoc($trend_res)) {
+        $trend_data[$row['month_key']] = $row;
+    }
+}
+
 for ($i = 5; $i >= 0; $i--) {
     $month_key = date('Y-m', strtotime("-$i months"));
     $month_label = date('M', strtotime($month_key . '-01'));
-    $month_key_safe = mysqli_real_escape_string($db, $month_key);
-    $result = mysqli_query($db, "SELECT COALESCE(SUM(profit), 0) AS profit, COUNT(*) AS bookings FROM bookings WHERE DATE_FORMAT(booking_date, '%Y-%m') = '$month_key_safe'");
-    $row = $result ? mysqli_fetch_assoc($result) : ['profit' => 0, 'bookings' => 0];
+    $row = $trend_data[$month_key] ?? ['profit' => 0, 'bookings' => 0];
     $monthly_trend[] = [
         'label' => $month_label,
         'profit' => (float) ($row['profit'] ?? 0),
@@ -81,7 +99,6 @@ $greeting = $hour < 12 ? 'Good morning' : ($hour < 17 ? 'Good afternoon' : 'Good
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CRM Dashboard | <?= htmlspecialchars(COMPANY_NAME) ?></title>
     <link rel="stylesheet" href="../assets/css/style.css">
-    <link rel="stylesheet" href="../assets/css/premium-dashboard.css">
     <script>if(localStorage.getItem("sidebar-locked")==="true")document.documentElement.classList.add("sidebar-pref-locked");</script>
     <script src="../assets/js/sidebar.js" defer></script>
 </head>
@@ -98,9 +115,12 @@ $greeting = $hour < 12 ? 'Good morning' : ($hour < 17 ? 'Good afternoon' : 'Good
         </div>
         <div class="crm-topbar-actions">
             <span class="crm-date"><?php echo date('D, d M Y'); ?></span>
-            <a href="enquiry/add.php" class="crm-button crm-button-secondary">+ New enquiry</a>
-            <a href="bookings/add.php" class="crm-button crm-button-primary">+ New booking</a>
-            <a href="profile/index.php" class="crm-avatar" aria-label="Open profile"><?php echo htmlspecialchars(dashboard_initials($admin_name)); ?></a>
+            <a href="enquiry/add.php?return_to=dashboard" class="crm-button crm-button-secondary">+ New enquiry</a>
+            <a href="bookings/add.php?return_to=dashboard" class="crm-button crm-button-primary">+ New booking</a>
+            <?php if (false): ?>
+                    <p class="crm-profile-upload-status" data-profile-upload-status>JPG, PNG or WebP · maximum 5MB</p>
+            <?php endif; ?>
+            <span class="crm-avatar" aria-hidden="true"><?php echo htmlspecialchars(dashboard_initials($admin_name)); ?></span>
         </div>
     </header>
 
@@ -212,7 +232,7 @@ $greeting = $hour < 12 ? 'Good morning' : ($hour < 17 ? 'Good afternoon' : 'Good
                     <p class="crm-panel-kicker">Latest contacts</p>
                     <h2>Recent enquiries</h2>
                 </div>
-                <a href="enquiry/add.php">Add enquiry <span>+</span></a>
+                <a href="enquiry/add.php?return_to=dashboard">Add enquiry <span>+</span></a>
             </div>
             <div class="crm-contact-list">
                 <?php if ($recent_enquiries && mysqli_num_rows($recent_enquiries) > 0): ?>
@@ -238,14 +258,14 @@ $greeting = $hour < 12 ? 'Good morning' : ($hour < 17 ? 'Good afternoon' : 'Good
                 <div class="crm-panel-header">
                     <div>
                         <p class="crm-panel-kicker">Shortcuts</p>
-                        <h2>Quick actions</h2>
+                        <h2>Quick Actions</h2>
                     </div>
                 </div>
                 <div class="crm-quick-grid">
-                    <a href="master/add.php"><span>+</span><strong>Add customer</strong><small>Create a CRM record</small></a>
-                    <a href="enquiry/add.php"><span>+</span><strong>Log enquiry</strong><small>Capture a new lead</small></a>
-                    <a href="bookings/add.php"><span>+</span><strong>Add booking</strong><small>Record a sale</small></a>
-                    <a href="tasks/add.php"><span>+</span><strong>Create task</strong><small>Assign follow-up</small></a>
+                    <a href="master/list.php?action=add&amp;return_to=dashboard" aria-label="Add customer"><span>+</span><strong>Add Customer</strong><small>Create a customer record</small></a>
+                    <a href="enquiry/add.php?return_to=dashboard" aria-label="Add enquiry"><span>+</span><strong>Add Enquiry</strong><small>Capture a new lead</small></a>
+                    <a href="bookings/add.php?return_to=dashboard" aria-label="Add booking"><span>+</span><strong>Add Booking</strong><small>Record a new booking</small></a>
+                    <a href="tasks/index.php" aria-label="Open team tasks"><span>&rarr;</span><strong>Team Tasks</strong><small>Review and assign tasks</small></a>
                 </div>
             </article>
 

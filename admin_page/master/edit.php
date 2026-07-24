@@ -63,6 +63,26 @@ if (isset($_POST["update"])) {
             }
         }
     }
+    if (empty($message)) {
+        if (!empty($mobile)) {
+            $dup_mobile_q = mysqli_query($db, "SELECT id, name FROM customer_master WHERE mobile = '$mobile' AND id != $id LIMIT 1");
+            if ($dup_mobile_q && mysqli_num_rows($dup_mobile_q) > 0) {
+                $dup_row = mysqli_fetch_assoc($dup_mobile_q);
+                $message = "Warning: Another customer with this mobile number already exists (Name: " . $dup_row['name'] . ").";
+                $message_type = "error";
+            }
+        }
+    }
+    if (empty($message)) {
+        if (!empty($email)) {
+            $dup_email_q = mysqli_query($db, "SELECT id, name FROM customer_master WHERE email = '$email' AND id != $id LIMIT 1");
+            if ($dup_email_q && mysqli_num_rows($dup_email_q) > 0) {
+                $dup_row = mysqli_fetch_assoc($dup_email_q);
+                $message = "Warning: Another customer with this email address already exists (Name: " . $dup_row['name'] . ").";
+                $message_type = "error";
+            }
+        }
+    }
 
     if (empty($message)) {
         if (!empty($name)) {
@@ -136,7 +156,7 @@ if (isset($_POST["update"])) {
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Edit Customer | <?= htmlspecialchars(COMPANY_NAME) ?></title>
+    <title>Edit <?php echo ($cust['customer_type'] === 'User') ? 'User' : 'Customer'; ?> | <?= htmlspecialchars(COMPANY_NAME) ?></title>
     <link rel="stylesheet" href="../../assets/css/style.css">
     <script>if(localStorage.getItem("sidebar-locked")==="true")document.documentElement.classList.add("sidebar-pref-locked");</script>
     <script src="../../assets/js/sidebar.js" defer></script>
@@ -155,7 +175,7 @@ if (isset($_POST["update"])) {
     </div>
 
     <div class="dashboard-title-row">
-        <h1>Edit Customer #<?php echo $cust['id']; ?></h1>
+        <h1>Edit <?php echo ($cust['customer_type'] === 'User') ? 'User' : 'Customer'; ?> #<?php echo $cust['id']; ?></h1>
         <a href="view.php?id=<?php echo $cust['id']; ?>" class="btn btn-secondary">Cancel & Back</a>
     </div>
     
